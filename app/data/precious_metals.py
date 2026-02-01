@@ -10,11 +10,15 @@ from enum import Enum
 from typing import Optional
 import logging
 
+import httpx
 import numpy as np
 import pandas as pd
 import yfinance as yf
 
 logger = logging.getLogger(__name__)
+
+# Free API for spot prices
+GOLDPRICE_API_URL = "https://data-asg.goldprice.org/dbXRates/USD"
 
 
 class TradingSession(Enum):
@@ -116,13 +120,13 @@ class CorrelatedAsset:
 class PreciousMetalsDataFetcher:
     """
     Fetches and processes precious metals data for XAU/USD and XAG/USD.
-    Uses yfinance for gold (GC=F) and silver (SI=F) futures.
+    Uses yfinance for gold and silver SPOT prices (forex symbols).
     """
 
-    # Symbol mappings
+    # Symbol mappings - using forex spot symbols, not futures
     METALS = {
-        "XAU/USD": {"yf_symbol": "GC=F", "name": "Gold", "pip_value": 0.01},
-        "XAG/USD": {"yf_symbol": "SI=F", "name": "Silver", "pip_value": 0.001},
+        "XAU/USD": {"yf_symbol": "XAUUSD=X", "name": "Gold Spot", "pip_value": 0.01},
+        "XAG/USD": {"yf_symbol": "XAGUSD=X", "name": "Silver Spot", "pip_value": 0.001},
     }
 
     # Correlated assets for monitoring
@@ -184,6 +188,55 @@ class PreciousMetalsDataFetcher:
         """Initialize with optional cache TTL in seconds."""
         self._cache: dict = {}
         self._cache_ttl = cache_ttl
+        self._spot_prices: dict = {}  # Cache for spot prices
+
+    def _fetch_spot_prices(self) -> dict:
+        """
+        Fetch real-time spot prices from goldprice.org API.
+        Returns dict with xau and xag prices.
+        """
+        cache_key = "spot_prices"
+        if self._is_cache_valid(cache_key):
+            return self._cache[cache_key]["data"]
+
+        try:
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Accept": "application/json",
+            }
+            with httpx.Client(timeout=10, headers=headers) as client:
+                resp = client.get(GOLDPRICE_API_URL)
+                data = resp.json()
+
+                if data.get("items") and len(data["items"]) > 0:
+                    item = data["items"][0]
+                    spot_data = {
+                        "xau": {
+                            "price": item.get("xauPrice", 0),
+                            "change": item.get("chgXau", 0),
+                            "change_percent": item.get("pcXau", 0),
+                            "prev_close": item.get("xauClose", 0),
+                        },
+                        "xag": {
+                            "price": item.get("xagPrice", 0),
+                            "change": item.get("chgXag", 0),
+                            "change_percent": item.get("pcXag", 0),
+                            "prev_close": item.get("xagClose", 0),
+                        },
+                        "timestamp": datetime.now(timezone.utc),
+                    }
+
+                    self._cache[cache_key] = {
+                        "data": spot_data,
+                        "timestamp": datetime.now(timezone.utc)
+                    }
+                    return spot_data
+
+        except Exception as e:
+            logger.error(f"Error fetching spot prices: {e}")
+
+        # Return empty if failed
+        return {"xau": {}, "xag": {}, "timestamp": datetime.now(timezone.utc)}
 
     def _is_cache_valid(self, key: str) -> bool:
         """Check if cached data is still valid."""
@@ -367,53 +420,40 @@ class PreciousMetalsDataFetcher:
         if self._is_cache_valid(cache_key):
             return self._cache[cache_key]["data"]
 
-        # Fetch different timeframes
-        ohlcv_1m = self._fetch_ohlcv(yf_symbol, period="1d", interval="1m")
-        ohlcv_5m = self._fetch_ohlcv(yf_symbol, period="5d", interval="5m")
-        ohlcv_15m = self._fetch_ohlcv(yf_symbol, period="5d", interval="15m")
-        ohlcv_1h = self._fetch_ohlcv(yf_symbol, period="1mo", interval="1h")
+        # Fetch REAL spot prices from goldprice.org API
+        spot_prices = self._fetch_spot_prices()
+        spot_key = "xau" if "XAU" in symbol else "xag"
+        spot_data = spot_prices.get(spot_key, {})
 
-        # Get current price from most recent data
-        price_data = ohlcv_1m if ohlcv_1m else ohlcv_5m
+        # Fetch historical OHLCV from yfinance (GLD/SLV ETFs for charting)
+        # Use ETFs that track spot price for historical data
+        etf_symbol = "GLD" if "XAU" in symbol else "SLV"
+        ohlcv_1m = self._fetch_ohlcv(etf_symbol, period="1d", interval="1m")
+        ohlcv_5m = self._fetch_ohlcv(etf_symbol, period="5d", interval="5m")
+        ohlcv_15m = self._fetch_ohlcv(etf_symbol, period="5d", interval="15m")
+        ohlcv_1h = self._fetch_ohlcv(etf_symbol, period="1mo", interval="1h")
 
-        if price_data:
-            current = price_data[-1]
-            # Calculate 24h change
-            day_ago_idx = max(0, len(price_data) - 390)  # ~6.5 hours of 1m candles
-            day_ago_price = price_data[day_ago_idx].close if len(price_data) > day_ago_idx else current.open
-            change = current.close - day_ago_price
-            change_percent = (change / day_ago_price) * 100 if day_ago_price > 0 else 0
+        # Use real spot price from API, not ETF price
+        spot_price = spot_data.get("price", 0)
+        change = spot_data.get("change", 0)
+        change_percent = spot_data.get("change_percent", 0)
+        prev_close = spot_data.get("prev_close", spot_price)
 
-            # 24h high/low
-            high_24h = max(c.high for c in price_data)
-            low_24h = min(c.low for c in price_data)
+        # Estimate high/low from change
+        high_24h = max(spot_price, prev_close) * 1.005  # Estimate
+        low_24h = min(spot_price, prev_close) * 0.995   # Estimate
 
-            current_price = MetalPrice(
-                symbol=symbol,
-                name=metal_info["name"],
-                price=current.close,
-                change=change,
-                change_percent=change_percent,
-                high_24h=high_24h,
-                low_24h=low_24h,
-                volume=current.volume,
-                timestamp=current.timestamp
-            )
-        else:
-            # Fallback to basic fetch
-            ticker = yf.Ticker(yf_symbol)
-            info = ticker.info
-            current_price = MetalPrice(
-                symbol=symbol,
-                name=metal_info["name"],
-                price=info.get("regularMarketPrice", 0),
-                change=info.get("regularMarketChange", 0),
-                change_percent=info.get("regularMarketChangePercent", 0),
-                high_24h=info.get("dayHigh", 0),
-                low_24h=info.get("dayLow", 0),
-                volume=info.get("volume", 0),
-                timestamp=datetime.now(timezone.utc)
-            )
+        current_price = MetalPrice(
+            symbol=symbol,
+            name=metal_info["name"],
+            price=spot_price,
+            change=change,
+            change_percent=change_percent,
+            high_24h=high_24h,
+            low_24h=low_24h,
+            volume=0,  # Spot forex doesn't have volume
+            timestamp=spot_prices.get("timestamp", datetime.now(timezone.utc))
+        )
 
         # Analyze volume
         volume_analysis = self._analyze_volume(ohlcv_1m if ohlcv_1m else ohlcv_5m)

@@ -23,11 +23,11 @@ class Settings:
     DEFAULT_CRYPTO: list = ["bitcoin", "ethereum", "solana", "cardano"]
     DEFAULT_FOREX: list = ["EUR", "GBP", "JPY", "AUD", "CAD"]
 
-    # Precious metals settings
+    # Precious metals settings - using spot forex symbols for real trading
     DEFAULT_METALS: list = ["XAU/USD", "XAG/USD"]
     METALS_SYMBOLS: dict = {
-        "XAU/USD": {"yf_symbol": "GC=F", "name": "Gold", "pip_value": 10.0},
-        "XAG/USD": {"yf_symbol": "SI=F", "name": "Silver", "pip_value": 50.0},
+        "XAU/USD": {"yf_symbol": "XAUUSD=X", "name": "Gold Spot", "pip_value": 0.01},
+        "XAG/USD": {"yf_symbol": "XAGUSD=X", "name": "Silver Spot", "pip_value": 0.001},
     }
     CORRELATED_ASSETS: list = ["DXY", "US10Y", "SPY", "VIX", "USO", "EUR/USD"]
 
