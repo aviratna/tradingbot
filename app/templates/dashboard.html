@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} - Real-Time Market Analysis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0f1419;
+            --bg-secondary: #1a1f2e;
+            --bg-card: #1e2433;
+            --text-primary: #ffffff;
+            --text-secondary: #8b949e;
+            --accent-green: #00d26a;
+            --accent-red: #ff4757;
+            --accent-blue: #4a9eff;
+        }
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        .card {
+            background-color: var(--bg-card);
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .bullish { color: var(--accent-green); }
+        .bearish { color: var(--accent-red); }
+        .neutral { color: var(--text-secondary); }
+        .sentiment-gauge {
+            width: 100%;
+            height: 8px;
+            background: linear-gradient(to right, #ff4757, #ffa502, #00d26a);
+            border-radius: 4px;
+            position: relative;
+        }
+        .sentiment-indicator {
+            width: 12px;
+            height: 12px;
+            background: white;
+            border-radius: 50%;
+            position: absolute;
+            top: -2px;
+            transform: translateX(-50%);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        .loading {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .fib-level {
+            border-left: 3px solid;
+            padding-left: 8px;
+            margin: 4px 0;
+        }
+        .fib-support { border-color: var(--accent-green); }
+        .fib-resistance { border-color: var(--accent-red); }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- Header -->
+    <header class="bg-gray-900/80 backdrop-blur-md sticky top-0 z-50 border-b border-gray-800">
+        <div class="max-w-7xl mx-auto px-4 py-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <h1 class="text-xl font-bold">Trading Dashboard</h1>
+                    <span class="text-sm text-gray-500">Real-Time Market Analysis</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span id="last-updated" class="text-sm text-gray-500"></span>
+                    <button onclick="refreshData()" class="px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-700 transition">
+                        Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Ticker Tape -->
+    <div id="ticker-tape" class="w-full"></div>
+
+    <main class="max-w-7xl mx-auto px-4 py-6">
+        <!-- Market Overview Section -->
+        <section class="mb-8">
+            <h2 class="text-lg font-semibold mb-4">Market Overview</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- Stocks Card -->
+                <div class="card p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-medium">Stocks</h3>
+                        <span class="text-sm text-gray-500">US Markets</span>
+                    </div>
+                    <div id="stocks-list" class="space-y-2">
+                        <div class="loading text-gray-500">Loading...</div>
+                    </div>
+                </div>
+                <!-- Crypto Card -->
+                <div class="card p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-medium">Cryptocurrency</h3>
+                        <span class="text-sm text-gray-500">24h</span>
+                    </div>
+                    <div id="crypto-list" class="space-y-2">
+                        <div class="loading text-gray-500">Loading...</div>
+                    </div>
+                </div>
+                <!-- Forex Card -->
+                <div class="card p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-medium">Forex</h3>
+                        <span class="text-sm text-gray-500">USD Base</span>
+                    </div>
+                    <div id="forex-list" class="space-y-2">
+                        <div class="loading text-gray-500">Loading...</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Main Chart Section -->
+        <section class="mb-8">
+            <div class="card p-4">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-semibold">Chart Analysis</h2>
+                    <div class="flex items-center space-x-2">
+                        <select id="chart-symbol" class="bg-gray-800 border border-gray-700 rounded px-3 py-1" onchange="updateChart()">
+                            <option value="AAPL">AAPL</option>
+                            <option value="GOOGL">GOOGL</option>
+                            <option value="MSFT">MSFT</option>
+                            <option value="TSLA">TSLA</option>
+                            <option value="BTC">BTC</option>
+                            <option value="ETH">ETH</option>
+                            <option value="EURUSD">EUR/USD</option>
+                        </select>
+                        <select id="chart-interval" class="bg-gray-800 border border-gray-700 rounded px-3 py-1" onchange="updateChart()">
+                            <option value="15">15m</option>
+                            <option value="60">1H</option>
+                            <option value="D" selected>1D</option>
+                            <option value="W">1W</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="tradingview-chart" class="w-full" style="height: 500px;"></div>
+            </div>
+        </section>
+
+        <!-- Analysis Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <!-- Fibonacci Analysis -->
+            <div class="card p-4">
+                <h3 class="text-lg font-semibold mb-4">Fibonacci Analysis</h3>
+                <div id="fibonacci-analysis">
+                    <div class="loading text-gray-500">Select a symbol to analyze...</div>
+                </div>
+            </div>
+
+            <!-- Correlation Matrix -->
+            <div class="card p-4">
+                <h3 class="text-lg font-semibold mb-4">Correlation Matrix</h3>
+                <div id="correlation-matrix">
+                    <canvas id="correlation-chart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sentiment Section -->
+        <section class="mb-8">
+            <h2 class="text-lg font-semibold mb-4">Market Sentiment</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- Overall Sentiment -->
+                <div class="card p-4">
+                    <h3 class="font-medium mb-3">Overall Sentiment</h3>
+                    <div id="overall-sentiment" class="text-center">
+                        <div class="text-4xl font-bold mb-2" id="sentiment-score">--</div>
+                        <div class="sentiment-gauge mb-2">
+                            <div class="sentiment-indicator" id="sentiment-indicator" style="left: 50%;"></div>
+                        </div>
+                        <div id="sentiment-label" class="text-sm text-gray-500">Loading...</div>
+                    </div>
+                </div>
+                <!-- News Sentiment -->
+                <div class="card p-4">
+                    <h3 class="font-medium mb-3">News Sentiment</h3>
+                    <div id="news-sentiment">
+                        <div class="flex justify-between text-sm mb-2">
+                            <span>Bullish</span>
+                            <span id="news-bullish">--%</span>
+                        </div>
+                        <div class="w-full bg-gray-700 rounded-full h-2 mb-3">
+                            <div id="news-bullish-bar" class="bg-green-500 h-2 rounded-full" style="width: 0%"></div>
+                        </div>
+                        <div class="flex justify-between text-sm mb-2">
+                            <span>Bearish</span>
+                            <span id="news-bearish">--%</span>
+                        </div>
+                        <div class="w-full bg-gray-700 rounded-full h-2">
+                            <div id="news-bearish-bar" class="bg-red-500 h-2 rounded-full" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Social Sentiment -->
+                <div class="card p-4">
+                    <h3 class="font-medium mb-3">Social Sentiment</h3>
+                    <div id="social-sentiment">
+                        <div class="text-center mb-3">
+                            <div class="text-2xl font-bold" id="social-trending">--</div>
+                            <div class="text-sm text-gray-500">Trending Score</div>
+                        </div>
+                        <div class="grid grid-cols-3 text-center text-sm">
+                            <div>
+                                <div class="bullish font-bold" id="social-positive">--</div>
+                                <div class="text-gray-500">Positive</div>
+                            </div>
+                            <div>
+                                <div class="neutral font-bold" id="social-neutral">--</div>
+                                <div class="text-gray-500">Neutral</div>
+                            </div>
+                            <div>
+                                <div class="bearish font-bold" id="social-negative">--</div>
+                                <div class="text-gray-500">Negative</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- News Feed -->
+        <section class="mb-8">
+            <h2 class="text-lg font-semibold mb-4">Latest News</h2>
+            <div class="card p-4">
+                <div id="news-feed" class="space-y-4">
+                    <div class="loading text-gray-500">Loading news...</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Technical Analysis Widget -->
+        <section class="mb-8">
+            <h2 class="text-lg font-semibold mb-4">Technical Analysis</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="card p-4">
+                    <div id="technical-widget-1"></div>
+                </div>
+                <div class="card p-4">
+                    <div id="technical-widget-2"></div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-900 border-t border-gray-800 py-4">
+        <div class="max-w-7xl mx-auto px-4 text-center text-sm text-gray-500">
+            Trading Dashboard | Data from TradingView, CoinGecko, and NewsAPI
+        </div>
+    </footer>
+
+    <script>
+        // API endpoints
+        const API_BASE = '';
+
+        // Initialize TradingView widgets
+        function initTradingViewChart(symbol = 'NASDAQ:AAPL', interval = 'D') {
+            const container = document.getElementById('tradingview-chart');
+            container.innerHTML = '';
+
+            new TradingView.widget({
+                "width": "100%",
+                "height": 500,
+                "symbol": symbol,
+                "interval": interval,
+                "timezone": "Etc/UTC",
+                "theme": "dark",
+                "style": "1",
+                "locale": "en",
+                "toolbar_bg": "#1e2433",
+                "enable_publishing": false,
+                "hide_side_toolbar": false,
+                "allow_symbol_change": true,
+                "studies": ["MASimple@tv-basicstudies", "MACD@tv-basicstudies", "Volume@tv-basicstudies"],
+                "container_id": "tradingview-chart"
+            });
+        }
+
+        function initTickerTape() {
+            const container = document.getElementById('ticker-tape');
+            container.innerHTML = `
+                <div class="tradingview-widget-container">
+                    <div class="tradingview-widget-container__widget"></div>
+                    <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js" async>
+                    {
+                        "symbols": [
+                            {"proName": "NASDAQ:AAPL", "title": "Apple"},
+                            {"proName": "NASDAQ:GOOGL", "title": "Google"},
+                            {"proName": "NASDAQ:MSFT", "title": "Microsoft"},
+                            {"proName": "BINANCE:BTCUSDT", "title": "Bitcoin"},
+                            {"proName": "BINANCE:ETHUSDT", "title": "Ethereum"},
+                            {"proName": "FX:EURUSD", "title": "EUR/USD"}
+                        ],
+                        "showSymbolLogo": true,
+                        "colorTheme": "dark",
+                        "isTransparent": true,
+                        "displayMode": "adaptive",
+                        "locale": "en"
+                    }
+                    <\/script>
+                </div>
+            `;
+        }
+
+        function initTechnicalWidgets() {
+            // Widget 1 - AAPL
+            fetch(`${API_BASE}/api/widgets/technical/AAPL?height=300`)
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('technical-widget-1').innerHTML = data.html;
+                });
+
+            // Widget 2 - BTC
+            fetch(`${API_BASE}/api/widgets/technical/BTC?height=300`)
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('technical-widget-2').innerHTML = data.html;
+                });
+        }
+
+        // Fetch market data
+        async function fetchMarketData() {
+            try {
+                const response = await fetch(`${API_BASE}/api/market/all`);
+                const data = await response.json();
+
+                updateMarketList('stocks-list', data.stocks);
+                updateMarketList('crypto-list', data.crypto);
+                updateMarketList('forex-list', data.forex, true);
+            } catch (error) {
+                console.error('Error fetching market data:', error);
+            }
+        }
+
+        function updateMarketList(elementId, data, isForex = false) {
+            const container = document.getElementById(elementId);
+            if (!data || Object.keys(data).length === 0) {
+                container.innerHTML = '<div class="text-gray-500">No data available</div>';
+                return;
+            }
+
+            const html = Object.entries(data).slice(0, 5).map(([symbol, info]) => {
+                const change = info.change_percent || 0;
+                const changeClass = change >= 0 ? 'bullish' : 'bearish';
+                const changeSign = change >= 0 ? '+' : '';
+
+                return `
+                    <div class="flex items-center justify-between py-1">
+                        <div>
+                            <span class="font-medium">${info.symbol}</span>
+                        </div>
+                        <div class="text-right">
+                            <div class="font-medium">${isForex ? info.price?.toFixed(4) : '$' + (info.price?.toFixed(2) || '--')}</div>
+                            <div class="${changeClass} text-sm">${changeSign}${change?.toFixed(2) || '0.00'}%</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            container.innerHTML = html;
+        }
+
+        // Fetch Fibonacci analysis
+        async function fetchFibonacci(symbol) {
+            const container = document.getElementById('fibonacci-analysis');
+            container.innerHTML = '<div class="loading text-gray-500">Analyzing...</div>';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/analysis/fibonacci/${symbol}`);
+                const data = await response.json();
+
+                const trendClass = data.trend === 'uptrend' ? 'bullish' : (data.trend === 'downtrend' ? 'bearish' : 'neutral');
+
+                let html = `
+                    <div class="mb-4">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-gray-500">Symbol</span>
+                            <span class="font-bold">${data.symbol}</span>
+                        </div>
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-gray-500">Trend</span>
+                            <span class="${trendClass} font-medium">${data.trend.toUpperCase()}</span>
+                        </div>
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-gray-500">Current Price</span>
+                            <span class="font-medium">$${data.current_price}</span>
+                        </div>
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-gray-500">Zone</span>
+                            <span class="text-sm">${data.current_zone}</span>
+                        </div>
+                    </div>
+                    <div class="border-t border-gray-700 pt-3">
+                        <h4 class="text-sm font-medium mb-2">Retracement Levels</h4>
+                `;
+
+                data.retracement_levels.slice(0, 5).forEach(level => {
+                    const levelClass = level.is_support ? 'fib-support' : 'fib-resistance';
+                    html += `
+                        <div class="fib-level ${levelClass} text-sm">
+                            <span class="text-gray-500">${level.label}</span>
+                            <span class="float-right font-medium">$${level.price}</span>
+                        </div>
+                    `;
+                });
+
+                if (data.pattern) {
+                    html += `
+                        <div class="mt-4 p-2 bg-blue-900/30 rounded">
+                            <span class="text-blue-400 text-sm">Pattern: ${data.pattern}</span>
+                        </div>
+                    `;
+                }
+
+                html += '</div>';
+                container.innerHTML = html;
+            } catch (error) {
+                container.innerHTML = '<div class="text-red-500">Error loading analysis</div>';
+                console.error('Fibonacci error:', error);
+            }
+        }
+
+        // Fetch correlation data
+        async function fetchCorrelation() {
+            try {
+                const response = await fetch(`${API_BASE}/api/analysis/correlation?assets=AAPL,GOOGL,MSFT,AMZN`);
+                const data = await response.json();
+
+                renderCorrelationMatrix(data);
+            } catch (error) {
+                console.error('Correlation error:', error);
+            }
+        }
+
+        function renderCorrelationMatrix(data) {
+            const ctx = document.getElementById('correlation-chart').getContext('2d');
+            const assets = data.assets;
+            const matrix = data.matrix;
+
+            // Build data for heatmap
+            const chartData = [];
+            const labels = [];
+
+            assets.forEach((asset1, i) => {
+                labels.push(asset1);
+                assets.forEach((asset2, j) => {
+                    chartData.push({
+                        x: asset2,
+                        y: asset1,
+                        v: matrix[asset1]?.[asset2] || 0
+                    });
+                });
+            });
+
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: assets,
+                    datasets: assets.map((asset, i) => ({
+                        label: asset,
+                        data: assets.map(a => matrix[asset]?.[a] || 0),
+                        backgroundColor: assets.map(a => {
+                            const val = matrix[asset]?.[a] || 0;
+                            if (val > 0.5) return 'rgba(0, 210, 106, 0.7)';
+                            if (val > 0) return 'rgba(0, 210, 106, 0.3)';
+                            if (val < -0.5) return 'rgba(255, 71, 87, 0.7)';
+                            if (val < 0) return 'rgba(255, 71, 87, 0.3)';
+                            return 'rgba(139, 148, 158, 0.3)';
+                        })
+                    }))
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false },
+                        title: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            min: -1,
+                            max: 1,
+                            grid: { color: 'rgba(255,255,255,0.1)' },
+                            ticks: { color: '#8b949e' }
+                        },
+                        x: {
+                            grid: { color: 'rgba(255,255,255,0.1)' },
+                            ticks: { color: '#8b949e' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Fetch sentiment data
+        async function fetchSentiment() {
+            try {
+                const response = await fetch(`${API_BASE}/api/analysis/market-sentiment?market=all`);
+                const data = await response.json();
+
+                updateSentimentDisplay(data);
+            } catch (error) {
+                console.error('Sentiment error:', error);
+            }
+        }
+
+        function updateSentimentDisplay(data) {
+            const score = data.sentiment.combined_score || 0;
+            const label = data.sentiment.combined_label || 'neutral';
+
+            document.getElementById('sentiment-score').textContent = score.toFixed(2);
+            document.getElementById('sentiment-label').textContent = label.replace('_', ' ').toUpperCase();
+
+            // Update gauge indicator (convert -1 to 1 range to 0-100%)
+            const position = ((score + 1) / 2) * 100;
+            document.getElementById('sentiment-indicator').style.left = `${position}%`;
+
+            // Update news sentiment
+            if (data.sentiment.news?.distribution) {
+                const dist = data.sentiment.news.distribution;
+                const total = (dist.very_bullish || 0) + (dist.bullish || 0) + (dist.neutral || 0) + (dist.bearish || 0) + (dist.very_bearish || 0);
+                if (total > 0) {
+                    const bullish = ((dist.very_bullish || 0) + (dist.bullish || 0)) / total * 100;
+                    const bearish = ((dist.very_bearish || 0) + (dist.bearish || 0)) / total * 100;
+                    document.getElementById('news-bullish').textContent = `${bullish.toFixed(0)}%`;
+                    document.getElementById('news-bearish').textContent = `${bearish.toFixed(0)}%`;
+                    document.getElementById('news-bullish-bar').style.width = `${bullish}%`;
+                    document.getElementById('news-bearish-bar').style.width = `${bearish}%`;
+                }
+            }
+
+            // Update social sentiment
+            if (data.sentiment.social?.distribution) {
+                const dist = data.sentiment.social.distribution;
+                document.getElementById('social-positive').textContent = (dist.positive || 0);
+                document.getElementById('social-neutral').textContent = (dist.neutral || 0);
+                document.getElementById('social-negative').textContent = (dist.negative || 0);
+            }
+            document.getElementById('social-trending').textContent = (data.trending_score || 0).toFixed(0);
+        }
+
+        // Fetch news
+        async function fetchNews() {
+            try {
+                const response = await fetch(`${API_BASE}/api/news?market=all&limit=10`);
+                const data = await response.json();
+
+                const container = document.getElementById('news-feed');
+
+                if (!data.articles || data.articles.length === 0) {
+                    container.innerHTML = '<div class="text-gray-500">No news available</div>';
+                    return;
+                }
+
+                const html = data.articles.map(article => {
+                    const sentimentClass = article.sentiment?.score > 0.2 ? 'bullish' :
+                                          (article.sentiment?.score < -0.2 ? 'bearish' : 'neutral');
+                    return `
+                        <div class="border-b border-gray-700 pb-3 last:border-0">
+                            <div class="flex items-start justify-between">
+                                <div class="flex-1">
+                                    <a href="${article.url}" target="_blank" class="font-medium hover:text-blue-400 transition">
+                                        ${article.title}
+                                    </a>
+                                    <p class="text-sm text-gray-500 mt-1">${article.description?.slice(0, 150) || ''}...</p>
+                                    <div class="flex items-center mt-2 text-xs text-gray-500">
+                                        <span>${article.source}</span>
+                                        <span class="mx-2">|</span>
+                                        <span>${new Date(article.published_at).toLocaleDateString()}</span>
+                                        <span class="mx-2">|</span>
+                                        <span class="${sentimentClass}">${article.sentiment?.label?.replace('_', ' ') || 'Neutral'}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                container.innerHTML = html;
+            } catch (error) {
+                console.error('News error:', error);
+                document.getElementById('news-feed').innerHTML = '<div class="text-gray-500">Error loading news</div>';
+            }
+        }
+
+        // Update chart based on selection
+        function updateChart() {
+            const symbol = document.getElementById('chart-symbol').value;
+            const interval = document.getElementById('chart-interval').value;
+
+            const symbolMap = {
+                'AAPL': 'NASDAQ:AAPL',
+                'GOOGL': 'NASDAQ:GOOGL',
+                'MSFT': 'NASDAQ:MSFT',
+                'TSLA': 'NASDAQ:TSLA',
+                'BTC': 'BINANCE:BTCUSDT',
+                'ETH': 'BINANCE:ETHUSDT',
+                'EURUSD': 'FX:EURUSD'
+            };
+
+            initTradingViewChart(symbolMap[symbol] || symbol, interval);
+            fetchFibonacci(symbol);
+        }
+
+        // Refresh all data
+        async function refreshData() {
+            document.getElementById('last-updated').textContent = 'Updating...';
+
+            await Promise.all([
+                fetchMarketData(),
+                fetchSentiment(),
+                fetchNews(),
+                fetchCorrelation()
+            ]);
+
+            document.getElementById('last-updated').textContent =
+                `Last updated: ${new Date().toLocaleTimeString()}`;
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            // Load TradingView library
+            const script = document.createElement('script');
+            script.src = 'https://s3.tradingview.com/tv.js';
+            script.onload = () => {
+                initTradingViewChart();
+                initTickerTape();
+            };
+            document.head.appendChild(script);
+
+            // Fetch initial data
+            refreshData();
+            fetchFibonacci('AAPL');
+
+            // Auto-refresh every 5 minutes
+            setInterval(refreshData, 300000);
+        });
+    </script>
+</body>
+</html>
