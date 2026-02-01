@@ -579,7 +579,7 @@ async def get_manipulation_analysis(
     try:
         loop = asyncio.get_event_loop()
 
-        # Get OHLCV data
+        # Get OHLCV data (from ETF - GLD/SLV)
         df = await loop.run_in_executor(
             None,
             lambda: metals_fetcher.get_ohlcv_dataframe(symbol, "5m")
@@ -595,6 +595,17 @@ async def get_manipulation_analysis(
                 "recommendation": "No data available"
             }
 
+        # Get current spot price to calculate scale factor
+        metal_data = await loop.run_in_executor(
+            None,
+            lambda: metals_fetcher.get_metal_data(symbol)
+        )
+        spot_price = metal_data.current_price.price
+
+        # Calculate scale factor: ETF prices are ~1/10th of spot gold, ~1/3rd of spot silver
+        etf_price = df['close'].iloc[-1] if not df.empty else 1
+        scale_factor = spot_price / etf_price if etf_price > 0 else 1
+
         # Run manipulation analysis
         analysis = manipulation_detector.analyze(df, symbol)
 
@@ -607,7 +618,7 @@ async def get_manipulation_analysis(
                     "type": alert.manipulation_type.value,
                     "severity": alert.severity.value,
                     "description": alert.description,
-                    "key_level": alert.key_level_involved,
+                    "key_level": alert.key_level_involved * scale_factor if alert.key_level_involved else None,
                     "expected_reversal": alert.expected_reversal,
                     "confidence": alert.confidence
                 }
@@ -615,7 +626,7 @@ async def get_manipulation_analysis(
             ],
             "key_levels": [
                 {
-                    "price": level.price,
+                    "price": level.price * scale_factor,
                     "type": level.level_type,
                     "strength": level.strength,
                     "touches": level.touches
@@ -624,8 +635,8 @@ async def get_manipulation_analysis(
             ],
             "order_blocks": [
                 {
-                    "high": ob.price_high,
-                    "low": ob.price_low,
+                    "high": ob.price_high * scale_factor,
+                    "low": ob.price_low * scale_factor,
                     "type": ob.block_type,
                     "strength": ob.strength,
                     "is_tested": ob.is_tested
