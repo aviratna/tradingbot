@@ -538,7 +538,7 @@ async def get_metals_signals(
             lambda: metals_fetcher.get_metal_data(symbol)
         )
 
-        # Get OHLCV DataFrame for analysis
+        # Get OHLCV DataFrame for analysis (ETF data - GLD/SLV)
         df = metals_fetcher.get_ohlcv_dataframe(symbol, "5m")
 
         if df.empty:
@@ -548,19 +548,50 @@ async def get_metals_signals(
                 "message": "Insufficient data for signal generation"
             }
 
+        # Get spot price to calculate scale factor (ETF prices are ~1/10th of spot gold)
+        spot_price = metal_data.current_price.price
+        etf_price = df['close'].iloc[-1] if not df.empty else 1
+        scale_factor = spot_price / etf_price if etf_price > 0 else 1
+
         # Get manipulation alerts first
         manipulation = manipulation_detector.analyze(df, symbol)
 
         # Generate signals
         signal_summary = signal_generator.get_signal_summary(df, symbol)
 
+        # Scale top_signal prices to spot prices
+        scaled_top_signal = None
+        if signal_summary["top_signal"]:
+            ts = signal_summary["top_signal"]
+            scaled_top_signal = {
+                "direction": ts["direction"],
+                "entry": round(ts["entry"] * scale_factor, 2) if ts["entry"] else None,
+                "stop_loss": round(ts["stop_loss"] * scale_factor, 2) if ts["stop_loss"] else None,
+                "take_profit_1": round(ts["take_profit_1"] * scale_factor, 2) if ts["take_profit_1"] else None,
+                "take_profit_2": round(ts["take_profit_2"] * scale_factor, 2) if ts["take_profit_2"] else None,
+                "position_size": ts["position_size"],
+                "confidence": ts["confidence"],
+                "reasoning": ts["reasoning"],
+                "risk_reward_1": ts["risk_reward_1"],
+                "risk_reward_2": ts["risk_reward_2"],
+            }
+
+        # Scale indicator EMAs to spot prices
+        scaled_indicators = {
+            "rsi": signal_summary["indicators"]["rsi"],
+            "macd": round(signal_summary["indicators"]["macd"] * scale_factor, 4),
+            "macd_signal": round(signal_summary["indicators"]["macd_signal"] * scale_factor, 4),
+            "ema_9": round(signal_summary["indicators"]["ema_9"] * scale_factor, 2),
+            "ema_21": round(signal_summary["indicators"]["ema_21"] * scale_factor, 2),
+        }
+
         return {
             "symbol": symbol,
             "has_signal": signal_summary["has_signal"],
             "market_bias": signal_summary["market_bias"],
             "overall_confidence": signal_summary["overall_confidence"],
-            "top_signal": signal_summary["top_signal"],
-            "indicators": signal_summary["indicators"],
+            "top_signal": scaled_top_signal,
+            "indicators": scaled_indicators,
             "signal_count": signal_summary["signal_count"],
             "manipulation_score": manipulation.overall_manipulation_score
         }
