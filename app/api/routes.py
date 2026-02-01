@@ -1,4 +1,5 @@
 """API routes for the trading dashboard."""
+from datetime import datetime
 from typing import Dict, List, Optional, Any
 from fastapi import APIRouter, Query, HTTPException
 import asyncio
@@ -475,6 +476,49 @@ async def get_metals_prices() -> Dict[str, Any]:
                     "ratio": data.volume_analysis.volume_ratio,
                     "trend": data.volume_analysis.volume_trend
                 }
+
+        return result
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/api/metals/refresh")
+async def refresh_metals_data() -> Dict[str, Any]:
+    """Force refresh all metals data by clearing the cache."""
+    try:
+        # Clear the cache to force fresh data fetch
+        metals_fetcher._cache.clear()
+
+        # Fetch fresh data
+        loop = asyncio.get_event_loop()
+        metals_data = await loop.run_in_executor(None, metals_fetcher.get_all_metals)
+        session = metals_fetcher.get_current_session()
+
+        result = {
+            "status": "refreshed",
+            "timestamp": datetime.now().isoformat(),
+            "session": {
+                "name": session.name,
+                "manipulation_risk": session.manipulation_risk,
+                "is_active": session.is_active,
+                "time_remaining": str(session.time_remaining) if session.time_remaining else None
+            }
+        }
+
+        for symbol, data in metals_data.items():
+            key = symbol.split("/")[0].lower()
+            result[key] = {
+                "symbol": data.symbol,
+                "name": data.name,
+                "price": data.current_price.price,
+                "change": data.current_price.change,
+                "change_percent": data.current_price.change_percent,
+                "high_24h": data.current_price.high_24h,
+                "low_24h": data.current_price.low_24h,
+                "volume": data.current_price.volume,
+                "timestamp": data.current_price.timestamp.isoformat()
+            }
 
         return result
 

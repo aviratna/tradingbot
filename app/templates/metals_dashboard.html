@@ -52,8 +52,9 @@
                     <span id="currentSession" class="font-semibold">Loading...</span>
                     <span id="sessionRisk" class="ml-2 px-2 py-0.5 rounded text-xs">-</span>
                 </div>
-                <button onclick="refreshAll()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium transition">
-                    Refresh
+                <button id="refreshBtn" onclick="handleRefresh()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium transition flex items-center gap-2">
+                    <span id="refreshIcon">↻</span>
+                    <span id="refreshText">Refresh</span>
                 </button>
                 <span id="lastUpdate" class="text-sm text-gray-400">--:--:--</span>
             </div>
@@ -581,10 +582,76 @@
             document.getElementById('lastUpdate').textContent = now.toLocaleTimeString();
         }
 
+        // Handle refresh with loading state
+        async function handleRefresh() {
+            const btn = document.getElementById('refreshBtn');
+            const icon = document.getElementById('refreshIcon');
+            const text = document.getElementById('refreshText');
+
+            // Disable button and show loading
+            btn.disabled = true;
+            btn.classList.add('opacity-75');
+            icon.style.animation = 'spin 1s linear infinite';
+            text.textContent = 'Refreshing...';
+
+            // Add spin animation
+            if (!document.getElementById('spinStyle')) {
+                const style = document.createElement('style');
+                style.id = 'spinStyle';
+                style.textContent = '@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }';
+                document.head.appendChild(style);
+            }
+
+            try {
+                await refreshAll();
+            } finally {
+                // Re-enable button
+                btn.disabled = false;
+                btn.classList.remove('opacity-75');
+                icon.style.animation = '';
+                text.textContent = 'Refresh';
+            }
+        }
+
+        // Force refresh data from server (clears cache)
+        async function forceRefresh() {
+            try {
+                const response = await fetch('/api/metals/refresh', { method: 'POST' });
+                const data = await response.json();
+                console.log('Cache cleared, fresh data:', data.status);
+
+                // Update prices from refresh response
+                if (data.xau) {
+                    document.getElementById('xauPrice').textContent = `$${data.xau.price.toFixed(2)}`;
+                    document.getElementById('xauPrice').className =
+                        `text-xl font-bold ${data.xau.change >= 0 ? 'text-green-400' : 'text-red-400'}`;
+                }
+                if (data.xag) {
+                    document.getElementById('xagPrice').textContent = `$${data.xag.price.toFixed(3)}`;
+                    document.getElementById('xagPrice').className =
+                        `text-xl font-bold ${data.xag.change >= 0 ? 'text-green-400' : 'text-red-400'}`;
+                }
+                if (data.session) {
+                    document.getElementById('currentSession').textContent = data.session.name;
+                    const riskEl = document.getElementById('sessionRisk');
+                    riskEl.textContent = data.session.manipulation_risk;
+                    riskEl.className = `ml-2 px-2 py-0.5 rounded text-xs risk-${data.session.manipulation_risk.toLowerCase()}`;
+                }
+
+                return true;
+            } catch (error) {
+                console.error('Error forcing refresh:', error);
+                return false;
+            }
+        }
+
         // Refresh all data
         async function refreshAll() {
+            // First clear cache and get fresh prices
+            await forceRefresh();
+
+            // Then fetch all related data
             await Promise.all([
-                fetchPrices(),
                 fetchCorrelations(),
                 fetchSignals(),
                 fetchManipulation(),
