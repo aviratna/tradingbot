@@ -23,6 +23,20 @@ class Settings:
     DEFAULT_CRYPTO: list = ["bitcoin", "ethereum", "solana", "cardano"]
     DEFAULT_FOREX: list = ["EUR", "GBP", "JPY", "AUD", "CAD"]
 
+    # Precious metals settings
+    DEFAULT_METALS: list = ["XAU/USD", "XAG/USD"]
+    METALS_SYMBOLS: dict = {
+        "XAU/USD": {"yf_symbol": "GC=F", "name": "Gold", "pip_value": 10.0},
+        "XAG/USD": {"yf_symbol": "SI=F", "name": "Silver", "pip_value": 50.0},
+    }
+    CORRELATED_ASSETS: list = ["DXY", "US10Y", "SPY", "VIX", "USO", "EUR/USD"]
+
+    # Trading settings
+    DEFAULT_ACCOUNT_SIZE: float = 5000.0
+    DEFAULT_RISK_PERCENT: float = 2.0
+    MIN_RR_RATIO: float = 1.5
+    MAX_DAILY_RISK_PERCENT: float = 6.0
+
     # Fibonacci levels
     FIBONACCI_RETRACEMENT: list = [0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0]
     FIBONACCI_EXTENSION: list = [1.0, 1.272, 1.618, 2.0, 2.618]

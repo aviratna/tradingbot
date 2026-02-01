@@ -48,7 +48,8 @@ class MarketDataFetcher:
         """Check if cached data is still valid."""
         if key not in self._cache:
             return False
-        ttl = ttl or settings.CACHE_TTL_MARKET
+        if ttl is None:
+            ttl = settings.CACHE_TTL_MARKET
         age = (datetime.now() - self._cache_timestamps.get(key, datetime.min)).total_seconds()
         return age < ttl
 

@@ -6,7 +6,12 @@ import pandas as pd
 
 from ..data import MarketDataFetcher, NewsDataFetcher, SocialDataFetcher
 from ..data.tradingview import TradingViewIntegration
+from ..data.precious_metals import PreciousMetalsDataFetcher
 from ..analysis import FibonacciAnalyzer, CorrelationAnalyzer, SentimentAnalyzer
+from ..analysis.manipulation import ManipulationDetector
+from ..analysis.signals import SignalGenerator
+from ..analysis.backtesting import BacktestEngine
+from ..trading import PositionSizer, PnLTracker
 
 router = APIRouter()
 
@@ -18,6 +23,14 @@ tradingview = TradingViewIntegration()
 fibonacci_analyzer = FibonacciAnalyzer()
 correlation_analyzer = CorrelationAnalyzer()
 sentiment_analyzer = SentimentAnalyzer()
+
+# Precious metals components
+metals_fetcher = PreciousMetalsDataFetcher()
+manipulation_detector = ManipulationDetector()
+signal_generator = SignalGenerator()
+backtest_engine = BacktestEngine()
+position_sizer = PositionSizer()
+pnl_tracker = PnLTracker()
 
 
 @router.get("/api/health")
@@ -420,3 +433,283 @@ async def get_dashboard_summary() -> Dict[str, Any]:
             })
 
     return summary
+
+
+# ==================== PRECIOUS METALS API ENDPOINTS ====================
+
+@router.get("/api/metals/prices")
+async def get_metals_prices() -> Dict[str, Any]:
+    """Get current precious metals prices (XAU/USD, XAG/USD)."""
+    try:
+        loop = asyncio.get_event_loop()
+        metals_data = await loop.run_in_executor(None, metals_fetcher.get_all_metals)
+        session = metals_fetcher.get_current_session()
+
+        result = {
+            "session": {
+                "name": session.name,
+                "manipulation_risk": session.manipulation_risk,
+                "is_active": session.is_active,
+                "time_remaining": str(session.time_remaining) if session.time_remaining else None
+            }
+        }
+
+        for symbol, data in metals_data.items():
+            key = symbol.split("/")[0].lower()
+            result[key] = {
+                "symbol": data.symbol,
+                "name": data.name,
+                "price": data.current_price.price,
+                "change": data.current_price.change,
+                "change_percent": data.current_price.change_percent,
+                "high_24h": data.current_price.high_24h,
+                "low_24h": data.current_price.low_24h,
+                "volume": data.current_price.volume,
+                "timestamp": data.current_price.timestamp.isoformat()
+            }
+
+            if data.volume_analysis:
+                result[key]["volume_analysis"] = {
+                    "current": data.volume_analysis.current_volume,
+                    "average": data.volume_analysis.avg_volume,
+                    "ratio": data.volume_analysis.volume_ratio,
+                    "trend": data.volume_analysis.volume_trend
+                }
+
+        return result
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/metals/signals")
+async def get_metals_signals(
+    symbol: str = Query("XAU/USD", description="Metal symbol (XAU/USD or XAG/USD)")
+) -> Dict[str, Any]:
+    """Get trade signals for precious metals."""
+    try:
+        loop = asyncio.get_event_loop()
+        metal_data = await loop.run_in_executor(
+            None,
+            lambda: metals_fetcher.get_metal_data(symbol)
+        )
+
+        # Get OHLCV DataFrame for analysis
+        df = metals_fetcher.get_ohlcv_dataframe(symbol, "5m")
+
+        if df.empty:
+            return {
+                "symbol": symbol,
+                "has_signal": False,
+                "message": "Insufficient data for signal generation"
+            }
+
+        # Get manipulation alerts first
+        manipulation = manipulation_detector.analyze(df, symbol)
+
+        # Generate signals
+        signal_summary = signal_generator.get_signal_summary(df, symbol)
+
+        return {
+            "symbol": symbol,
+            "has_signal": signal_summary["has_signal"],
+            "market_bias": signal_summary["market_bias"],
+            "overall_confidence": signal_summary["overall_confidence"],
+            "top_signal": signal_summary["top_signal"],
+            "indicators": signal_summary["indicators"],
+            "signal_count": signal_summary["signal_count"],
+            "manipulation_score": manipulation.overall_manipulation_score
+        }
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/metals/manipulation")
+async def get_manipulation_analysis(
+    symbol: str = Query("XAU/USD", description="Metal symbol")
+) -> Dict[str, Any]:
+    """Get manipulation detection analysis for precious metals."""
+    try:
+        loop = asyncio.get_event_loop()
+
+        # Get OHLCV data
+        df = await loop.run_in_executor(
+            None,
+            lambda: metals_fetcher.get_ohlcv_dataframe(symbol, "5m")
+        )
+
+        if df.empty:
+            return {
+                "symbol": symbol,
+                "manipulation_score": 0,
+                "session_risk": "UNKNOWN",
+                "active_alerts": [],
+                "key_levels": [],
+                "recommendation": "No data available"
+            }
+
+        # Run manipulation analysis
+        analysis = manipulation_detector.analyze(df, symbol)
+
+        return {
+            "symbol": symbol,
+            "manipulation_score": analysis.overall_manipulation_score,
+            "session_risk": analysis.session_risk,
+            "active_alerts": [
+                {
+                    "type": alert.manipulation_type.value,
+                    "severity": alert.severity.value,
+                    "description": alert.description,
+                    "key_level": alert.key_level_involved,
+                    "expected_reversal": alert.expected_reversal,
+                    "confidence": alert.confidence
+                }
+                for alert in analysis.active_alerts
+            ],
+            "key_levels": [
+                {
+                    "price": level.price,
+                    "type": level.level_type,
+                    "strength": level.strength,
+                    "touches": level.touches
+                }
+                for level in analysis.key_levels
+            ],
+            "order_blocks": [
+                {
+                    "high": ob.price_high,
+                    "low": ob.price_low,
+                    "type": ob.block_type,
+                    "strength": ob.strength,
+                    "is_tested": ob.is_tested
+                }
+                for ob in analysis.order_blocks
+            ],
+            "recommendation": analysis.recommendation
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/metals/correlations")
+async def get_metals_correlations() -> Dict[str, Any]:
+    """Get correlation data for precious metals with other assets."""
+    try:
+        loop = asyncio.get_event_loop()
+        correlated = await loop.run_in_executor(
+            None,
+            metals_fetcher.get_correlated_assets
+        )
+
+        return {
+            "correlations": [
+                {
+                    "symbol": asset.symbol,
+                    "name": asset.name,
+                    "price": asset.price,
+                    "change_percent": asset.change_percent,
+                    "correlation_type": asset.correlation_type
+                }
+                for asset in correlated
+            ]
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/metals/backtest")
+async def run_metals_backtest(
+    symbol: str = Query("XAU/USD", description="Metal symbol"),
+    strategy: str = Query("default", description="Strategy name")
+) -> Dict[str, Any]:
+    """Run backtest on precious metals trading strategy."""
+    try:
+        loop = asyncio.get_event_loop()
+
+        # Get historical data
+        df = await loop.run_in_executor(
+            None,
+            lambda: metals_fetcher.get_ohlcv_dataframe(symbol, "1h")
+        )
+
+        if df.empty or len(df) < 100:
+            return {
+                "symbol": symbol,
+                "error": "Insufficient historical data for backtesting"
+            }
+
+        # Run backtest
+        result = backtest_engine.run_backtest(
+            df=df,
+            signal_generator=signal_generator.generate_signals,
+            symbol=symbol,
+            strategy_name=strategy
+        )
+
+        return backtest_engine.get_backtest_summary(result)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/metals/pnl")
+async def get_metals_pnl() -> Dict[str, Any]:
+    """Get P&L summary for metals trading."""
+    try:
+        return pnl_tracker.get_pnl_summary()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/metals/position-size")
+async def calculate_position_size(
+    symbol: str = Query("XAU/USD", description="Metal symbol"),
+    entry_price: float = Query(..., description="Entry price"),
+    stop_loss: float = Query(..., description="Stop loss price"),
+    take_profit_1: float = Query(..., description="First take profit"),
+    take_profit_2: float = Query(..., description="Second take profit"),
+    risk_percent: Optional[float] = Query(None, description="Custom risk percentage")
+) -> Dict[str, Any]:
+    """Calculate optimal position size for a trade."""
+    try:
+        position = position_sizer.calculate_position_size(
+            entry_price=entry_price,
+            stop_loss=stop_loss,
+            take_profit_1=take_profit_1,
+            take_profit_2=take_profit_2,
+            symbol=symbol,
+            custom_risk_percent=risk_percent
+        )
+
+        return position_sizer.get_position_summary(position)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/metals/session")
+async def get_trading_session() -> Dict[str, Any]:
+    """Get current trading session information."""
+    session = metals_fetcher.get_current_session()
+
+    return {
+        "session": session.session.value,
+        "name": session.name,
+        "start_hour": session.start_hour,
+        "end_hour": session.end_hour,
+        "manipulation_risk": session.manipulation_risk,
+        "description": session.description,
+        "is_active": session.is_active,
+        "time_remaining": str(session.time_remaining) if session.time_remaining else None
+    }
+
+
+# Debug: Print routes when module is loaded
+print(f"[DEBUG] routes.py loaded, total routes: {len([r for r in router.routes if hasattr(r, 'path')])}")
+_metal_routes = [r.path for r in router.routes if hasattr(r, 'path') and 'metal' in r.path]
+print(f"[DEBUG] Metal routes: {_metal_routes}")

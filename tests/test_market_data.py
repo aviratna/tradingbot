@@ -214,11 +214,11 @@ class TestCryptoDataFetcher:
             mock_instance = AsyncMock()
             mock_client.return_value.__aenter__.return_value = mock_instance
 
-            price_resp = AsyncMock()
-            price_resp.json.return_value = mock_price_response
+            price_resp = Mock()
+            price_resp.json = Mock(return_value=mock_price_response)
 
-            hist_resp = AsyncMock()
-            hist_resp.json.return_value = mock_history_response
+            hist_resp = Mock()
+            hist_resp.json = Mock(return_value=mock_history_response)
 
             mock_instance.get.side_effect = [price_resp, hist_resp]
 
@@ -258,8 +258,8 @@ class TestForexDataFetcher:
             mock_instance = AsyncMock()
             mock_client.return_value.__aenter__.return_value = mock_instance
 
-            resp = AsyncMock()
-            resp.json.return_value = mock_response
+            resp = Mock()
+            resp.json = Mock(return_value=mock_response)
             mock_instance.get.return_value = resp
 
             result = await fetcher.get_forex_data(['EUR', 'GBP'], base='USD')
@@ -282,8 +282,8 @@ class TestForexDataFetcher:
             mock_instance = AsyncMock()
             mock_client.return_value.__aenter__.return_value = mock_instance
 
-            resp = AsyncMock()
-            resp.json.return_value = mock_response
+            resp = Mock()
+            resp.json = Mock(return_value=mock_response)
             mock_instance.get.return_value = resp
 
             result = await fetcher.get_forex_data(['EUR', 'INVALID'])

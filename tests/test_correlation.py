@@ -39,7 +39,8 @@ def sample_price_data():
 def perfectly_correlated_data():
     """Generate perfectly correlated price data."""
     dates = pd.date_range(start='2024-01-01', periods=30, freq='D')
-    base = np.cumsum(np.random.randn(30))
+    # Use positive-only prices to avoid NaN in log returns
+    base = 100 + np.cumsum(np.random.randn(30) * 0.5)  # Start at 100, small steps
 
     return {
         'A': pd.Series(base, index=dates, name='A'),
@@ -51,11 +52,12 @@ def perfectly_correlated_data():
 def inversely_correlated_data():
     """Generate inversely correlated price data."""
     dates = pd.date_range(start='2024-01-01', periods=30, freq='D')
-    base = np.cumsum(np.random.randn(30))
+    # Use positive-only prices to avoid NaN in log returns
+    base = 100 + np.cumsum(np.random.randn(30) * 0.5)  # Start at 100, small steps
 
     return {
         'A': pd.Series(base, index=dates, name='A'),
-        'B': pd.Series(-base, index=dates, name='B'),  # Perfect negative correlation
+        'B': pd.Series(200 - base, index=dates, name='B'),  # Inverse but stays positive
     }
 
 

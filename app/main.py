@@ -48,6 +48,18 @@ async def dashboard(request: Request):
     )
 
 
+@app.get("/metals", response_class=HTMLResponse)
+async def metals_dashboard(request: Request):
+    """Render the precious metals trading dashboard."""
+    return templates.TemplateResponse(
+        "metals_dashboard.html",
+        {
+            "request": request,
+            "title": "Precious Metals Trading - XAU/USD & XAG/USD"
+        }
+    )
+
+
 @app.get("/health")
 async def health():
     """Health check endpoint."""
