@@ -339,6 +339,111 @@
                 </div>
             </div>
 
+            <!-- Scalp Trading Section -->
+            <div class="card p-4 border-2 border-cyan-500/30">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-lg font-semibold flex items-center gap-2">
+                        <span class="text-cyan-400">⚡</span>
+                        Scalp Trading
+                        <span class="text-xs bg-cyan-600 px-2 py-0.5 rounded animate-pulse">LIVE</span>
+                    </h2>
+                    <select id="scalpSymbol" class="bg-slate-700 text-sm rounded px-2 py-1 border border-slate-600" onchange="fetchScalpSuggestions()">
+                        <option value="XAU/USD">Gold (XAU)</option>
+                        <option value="XAG/USD">Silver (XAG)</option>
+                    </select>
+                </div>
+
+                <!-- Action Banner -->
+                <div id="scalpAction" class="p-3 rounded-lg mb-3 text-center bg-slate-700/50">
+                    <div class="text-2xl font-bold mb-1">ANALYZING...</div>
+                    <div class="text-sm text-gray-400">Loading market data</div>
+                </div>
+
+                <!-- Entry Details -->
+                <div id="scalpEntry" class="hidden mb-3">
+                    <div class="grid grid-cols-2 gap-2 text-sm">
+                        <div class="p-2 bg-slate-700/50 rounded">
+                            <span class="text-gray-400">Entry</span>
+                            <div id="scalpEntryPrice" class="font-bold text-lg">--</div>
+                        </div>
+                        <div class="p-2 bg-slate-700/50 rounded">
+                            <span class="text-gray-400">Stop Loss</span>
+                            <div id="scalpSL" class="font-bold text-lg text-red-400">--</div>
+                        </div>
+                        <div class="p-2 bg-green-900/30 rounded">
+                            <span class="text-gray-400">TP1 (1:1)</span>
+                            <div id="scalpTP1" class="font-semibold text-green-400">--</div>
+                        </div>
+                        <div class="p-2 bg-green-900/30 rounded">
+                            <span class="text-gray-400">TP2 (1.5:1)</span>
+                            <div id="scalpTP2" class="font-semibold text-green-400">--</div>
+                        </div>
+                    </div>
+                    <div class="mt-2 p-2 bg-slate-700/30 rounded text-xs">
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">Risk:</span>
+                            <span id="scalpRisk" class="font-semibold">$--</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">ATR:</span>
+                            <span id="scalpATR" class="font-semibold">$--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Confluence Factors -->
+                <div class="mb-3">
+                    <h4 class="text-xs font-semibold text-gray-400 mb-2">Confluence Factors</h4>
+                    <div id="confluenceFactors" class="space-y-1 max-h-24 overflow-y-auto scroll-thin">
+                        <div class="text-xs text-gray-500 p-2 bg-slate-700/20 rounded">Loading...</div>
+                    </div>
+                </div>
+
+                <!-- Confidence Meter -->
+                <div class="mb-3">
+                    <div class="flex justify-between text-xs mb-1">
+                        <span class="text-gray-400">Confidence</span>
+                        <span id="scalpConfidence" class="font-semibold">0%</span>
+                    </div>
+                    <div class="indicator-bar">
+                        <div id="scalpConfidenceBar" class="indicator-fill bg-cyan-500" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <!-- Quick Stats -->
+                <div class="grid grid-cols-4 gap-1 text-center text-xs mb-3">
+                    <div class="p-1.5 bg-slate-700/30 rounded">
+                        <div class="text-gray-400">RSI</div>
+                        <div id="scalpRSI" class="font-semibold">--</div>
+                    </div>
+                    <div class="p-1.5 bg-slate-700/30 rounded">
+                        <div class="text-gray-400">EMA9</div>
+                        <div id="scalpEMA9" class="font-semibold">--</div>
+                    </div>
+                    <div class="p-1.5 bg-slate-700/30 rounded">
+                        <div class="text-gray-400">EMA21</div>
+                        <div id="scalpEMA21" class="font-semibold">--</div>
+                    </div>
+                    <div class="p-1.5 bg-slate-700/30 rounded">
+                        <div class="text-gray-400">VWAP</div>
+                        <div id="scalpVWAP" class="font-semibold">--</div>
+                    </div>
+                </div>
+
+                <!-- Suggestions List -->
+                <div>
+                    <h4 class="text-xs font-semibold text-gray-400 mb-2">Action Plan</h4>
+                    <div id="scalpSuggestions" class="space-y-2">
+                        <div class="p-2 bg-slate-700/30 rounded text-sm text-gray-400">Loading suggestions...</div>
+                    </div>
+                </div>
+
+                <!-- Session Warning -->
+                <div id="sessionWarning" class="hidden mt-3 p-2 rounded text-xs">
+                    <span id="sessionWarningText"></span>
+                </div>
+            </div>
+
             <!-- P&L Tracker -->
             <div class="card p-4">
                 <h2 class="text-lg font-semibold mb-3">P&L Tracker</h2>
@@ -898,6 +1003,174 @@
             }
         }
 
+        // Fetch scalp trading suggestions
+        async function fetchScalpSuggestions() {
+            try {
+                const symbol = document.getElementById('scalpSymbol').value;
+                const response = await fetch(`/api/metals/scalp?symbol=${encodeURIComponent(symbol)}`);
+                const data = await response.json();
+
+                // Update action banner
+                const actionEl = document.getElementById('scalpAction');
+                const entryEl = document.getElementById('scalpEntry');
+
+                let actionClass = 'bg-slate-700/50';
+                let actionText = data.action;
+                let actionDetail = '';
+
+                if (data.action === 'BUY_NOW') {
+                    actionClass = 'bg-green-900/50 border-2 border-green-500';
+                    actionText = '🟢 BUY NOW';
+                    actionDetail = `Entry @ $${data.entry.toFixed(2)}`;
+                    entryEl.classList.remove('hidden');
+                } else if (data.action === 'SELL_NOW') {
+                    actionClass = 'bg-red-900/50 border-2 border-red-500';
+                    actionText = '🔴 SELL NOW';
+                    actionDetail = `Entry @ $${data.entry.toFixed(2)}`;
+                    entryEl.classList.remove('hidden');
+                } else if (data.action === 'PREPARE_BUY') {
+                    actionClass = 'bg-green-900/30 border border-green-600';
+                    actionText = '🟡 PREPARE BUY';
+                    actionDetail = 'Wait for better entry';
+                    entryEl.classList.remove('hidden');
+                } else if (data.action === 'PREPARE_SELL') {
+                    actionClass = 'bg-red-900/30 border border-red-600';
+                    actionText = '🟡 PREPARE SELL';
+                    actionDetail = 'Wait for better entry';
+                    entryEl.classList.remove('hidden');
+                } else {
+                    actionClass = 'bg-slate-700/50 border border-slate-600';
+                    actionText = '⏸️ WAIT';
+                    actionDetail = 'No clear setup - stay flat';
+                    entryEl.classList.add('hidden');
+                }
+
+                actionEl.className = `p-3 rounded-lg mb-3 text-center ${actionClass}`;
+                actionEl.innerHTML = `
+                    <div class="text-2xl font-bold mb-1">${actionText}</div>
+                    <div class="text-sm ${data.action.includes('BUY') ? 'text-green-400' : data.action.includes('SELL') ? 'text-red-400' : 'text-gray-400'}">${actionDetail}</div>
+                    <div class="text-xs text-gray-500 mt-1">@ $${data.current_price.toFixed(2)}</div>
+                `;
+
+                // Update entry details
+                if (data.entry) {
+                    document.getElementById('scalpEntryPrice').textContent = `$${data.entry.toFixed(2)}`;
+                    document.getElementById('scalpSL').textContent = `$${data.stop_loss.toFixed(2)}`;
+                    document.getElementById('scalpTP1').textContent = `$${data.take_profit_1.toFixed(2)}`;
+                    document.getElementById('scalpTP2').textContent = `$${data.take_profit_2.toFixed(2)}`;
+                    document.getElementById('scalpRisk').textContent = `$${data.risk_amount.toFixed(2)}`;
+                    document.getElementById('scalpATR').textContent = `$${data.atr.toFixed(2)}`;
+                }
+
+                // Update quick stats
+                document.getElementById('scalpRSI').textContent = data.rsi.toFixed(1);
+                document.getElementById('scalpRSI').className = `font-semibold ${data.rsi > 70 ? 'text-red-400' : data.rsi < 30 ? 'text-green-400' : 'text-white'}`;
+                document.getElementById('scalpEMA9').textContent = data.ema_9.toFixed(0);
+                document.getElementById('scalpEMA21').textContent = data.ema_21.toFixed(0);
+                document.getElementById('scalpVWAP').textContent = data.vwap.toFixed(0);
+
+                // Update confidence
+                document.getElementById('scalpConfidence').textContent = `${data.confidence.toFixed(0)}%`;
+                const confBar = document.getElementById('scalpConfidenceBar');
+                confBar.style.width = `${data.confidence}%`;
+                confBar.className = `indicator-fill ${data.confidence >= 60 ? 'bg-green-500' : data.confidence >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`;
+
+                // Update confluence factors
+                const factorsEl = document.getElementById('confluenceFactors');
+                if (data.confluence_factors && data.confluence_factors.length > 0) {
+                    factorsEl.innerHTML = data.confluence_factors.map(f => `
+                        <div class="flex items-center justify-between p-1.5 bg-slate-700/30 rounded text-xs">
+                            <span class="text-gray-300">${f.factor}</span>
+                            <span class="${
+                                f.direction === 'BUY' ? 'text-green-400' :
+                                f.direction === 'SELL' ? 'text-red-400' :
+                                f.direction === 'FAVORABLE' ? 'text-cyan-400' :
+                                f.direction === 'CAUTION' ? 'text-orange-400' : 'text-gray-400'
+                            }">${f.direction}</span>
+                        </div>
+                    `).join('');
+                } else {
+                    factorsEl.innerHTML = '<div class="text-xs text-gray-500 p-2 bg-slate-700/20 rounded">No confluence factors</div>';
+                }
+
+                // Update suggestions
+                const suggestionsEl = document.getElementById('scalpSuggestions');
+                if (data.suggestions && data.suggestions.length > 0) {
+                    suggestionsEl.innerHTML = data.suggestions.map(s => {
+                        let bgClass = 'bg-slate-700/30';
+                        let borderClass = '';
+                        let icon = '';
+
+                        if (s.type === 'ENTRY') {
+                            bgClass = data.action.includes('BUY') ? 'bg-green-900/40' : 'bg-red-900/40';
+                            borderClass = data.action.includes('BUY') ? 'border-l-4 border-green-500' : 'border-l-4 border-red-500';
+                            icon = data.action.includes('BUY') ? '🎯' : '🎯';
+                        } else if (s.type === 'TARGET') {
+                            bgClass = 'bg-blue-900/30';
+                            borderClass = 'border-l-4 border-blue-500';
+                            icon = '💰';
+                        } else if (s.type === 'WARNING') {
+                            bgClass = 'bg-orange-900/30';
+                            borderClass = 'border-l-4 border-orange-500';
+                            icon = '⚠️';
+                        } else if (s.type === 'INFO') {
+                            bgClass = 'bg-cyan-900/30';
+                            borderClass = 'border-l-4 border-cyan-500';
+                            icon = 'ℹ️';
+                        } else if (s.type === 'LEVELS') {
+                            bgClass = 'bg-purple-900/30';
+                            borderClass = 'border-l-4 border-purple-500';
+                            icon = '📊';
+                        } else if (s.type === 'RULES') {
+                            bgClass = 'bg-slate-700/30';
+                            borderClass = 'border-l-4 border-slate-500';
+                            icon = '📋';
+                        } else if (s.type === 'WAIT') {
+                            bgClass = 'bg-slate-700/40';
+                            borderClass = 'border-l-4 border-slate-400';
+                            icon = '⏸️';
+                        } else if (s.type === 'ALERT') {
+                            bgClass = 'bg-yellow-900/30';
+                            borderClass = 'border-l-4 border-yellow-500';
+                            icon = '🔔';
+                        }
+
+                        return `
+                            <div class="p-2 rounded ${bgClass} ${borderClass}">
+                                <div class="font-semibold text-sm flex items-center gap-2">
+                                    <span>${icon}</span>
+                                    <span>${s.text}</span>
+                                </div>
+                                <div class="text-xs text-gray-400 mt-1 ml-6">${s.detail}</div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+
+                // Update session warning
+                const warningEl = document.getElementById('sessionWarning');
+                const warningTextEl = document.getElementById('sessionWarningText');
+                if (data.session_risk === 'high' || data.session_risk === 'highest') {
+                    warningEl.classList.remove('hidden');
+                    warningEl.className = 'mt-3 p-2 rounded text-xs bg-orange-900/30 border border-orange-500';
+                    warningTextEl.textContent = `⚠️ ${data.session} - ${data.session_risk.toUpperCase()} manipulation risk. Reduce size or wait.`;
+                } else if (data.session_risk === 'low') {
+                    warningEl.classList.remove('hidden');
+                    warningEl.className = 'mt-3 p-2 rounded text-xs bg-green-900/30 border border-green-600';
+                    warningTextEl.textContent = `✅ ${data.session} - Low manipulation risk. Good for scalping.`;
+                } else {
+                    warningEl.classList.add('hidden');
+                }
+
+            } catch (error) {
+                console.error('Error fetching scalp suggestions:', error);
+                document.getElementById('scalpAction').innerHTML = `
+                    <div class="text-lg font-bold text-red-400">Error</div>
+                    <div class="text-sm text-gray-400">Failed to load scalp data</div>
+                `;
+            }
+        }
+
         async function refreshAll() {
             await forceRefresh();
             await Promise.all([
@@ -905,7 +1178,8 @@
                 fetchSignals(),
                 fetchManipulation(),
                 fetchPnL(),
-                fetchMarketIntelligence()
+                fetchMarketIntelligence(),
+                fetchScalpSuggestions()
             ]);
             updateTimestamp();
         }

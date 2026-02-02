@@ -864,6 +864,320 @@ async def get_market_intelligence() -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/api/metals/scalp")
+async def get_scalp_suggestions(
+    symbol: str = Query("XAU/USD", description="Metal symbol (XAU/USD or XAG/USD)")
+) -> Dict[str, Any]:
+    """Get scalp trading suggestions for precious metals - designed for quick wins."""
+    try:
+        loop = asyncio.get_event_loop()
+
+        # Get current metal data
+        metal_data = await loop.run_in_executor(
+            None,
+            lambda: metals_fetcher.get_metal_data(symbol)
+        )
+
+        # Get OHLCV DataFrame
+        df = metals_fetcher.get_ohlcv_dataframe(symbol, "5m")
+
+        if df.empty:
+            return {
+                "symbol": symbol,
+                "action": "WAIT",
+                "reason": "Insufficient market data",
+                "confidence": 0,
+                "suggestions": []
+            }
+
+        # Get spot price and calculate scale factor
+        spot_price = metal_data.current_price.price
+        etf_price = df['close'].iloc[-1] if not df.empty else 1
+        scale_factor = spot_price / etf_price if etf_price > 0 else 1
+
+        # Scale DataFrame to spot prices
+        scaled_df = df.copy()
+        scaled_df['open'] = df['open'] * scale_factor
+        scaled_df['high'] = df['high'] * scale_factor
+        scaled_df['low'] = df['low'] * scale_factor
+        scaled_df['close'] = df['close'] * scale_factor
+
+        current_price = scaled_df['close'].iloc[-1]
+
+        # Calculate indicators
+        # RSI
+        delta = scaled_df['close'].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        rs = gain / loss
+        rsi = 100 - (100 / (1 + rs))
+        current_rsi = rsi.iloc[-1]
+
+        # EMAs
+        ema_9 = scaled_df['close'].ewm(span=9).mean().iloc[-1]
+        ema_21 = scaled_df['close'].ewm(span=21).mean().iloc[-1]
+        ema_50 = scaled_df['close'].ewm(span=50).mean().iloc[-1]
+
+        # VWAP approximation (using typical price * volume)
+        typical_price = (scaled_df['high'] + scaled_df['low'] + scaled_df['close']) / 3
+        vwap = (typical_price * df['volume']).cumsum() / df['volume'].cumsum()
+        current_vwap = vwap.iloc[-1]
+
+        # ATR for stop loss calculation
+        high_low = scaled_df['high'] - scaled_df['low']
+        high_close = abs(scaled_df['high'] - scaled_df['close'].shift())
+        low_close = abs(scaled_df['low'] - scaled_df['close'].shift())
+        true_range = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+        atr = true_range.rolling(window=14).mean().iloc[-1]
+
+        # Session info
+        session = metals_fetcher.get_current_session()
+        session_risk = session.manipulation_risk.lower()
+
+        # Get manipulation analysis
+        manipulation = manipulation_detector.analyze(scaled_df, symbol)
+
+        # Determine scalp parameters based on symbol
+        if "XAU" in symbol:
+            min_sl = 2.0  # Minimum $2 stop loss for gold
+            max_sl = 5.0  # Maximum $5 stop loss
+            tick_size = 0.10
+        else:  # XAG
+            min_sl = 0.15  # Minimum $0.15 stop loss for silver
+            max_sl = 0.40  # Maximum $0.40 stop loss
+            tick_size = 0.01
+
+        # Calculate dynamic stop loss based on ATR (0.5-1x ATR for scalping)
+        scalp_sl = max(min_sl, min(max_sl, atr * 0.7))
+
+        # Build confluence score and direction
+        bullish_signals = 0
+        bearish_signals = 0
+        confluence_factors = []
+
+        # RSI analysis
+        if current_rsi < 30:
+            bullish_signals += 2
+            confluence_factors.append({"factor": "RSI Oversold", "direction": "BUY", "weight": 2})
+        elif current_rsi < 40:
+            bullish_signals += 1
+            confluence_factors.append({"factor": "RSI Low", "direction": "BUY", "weight": 1})
+        elif current_rsi > 70:
+            bearish_signals += 2
+            confluence_factors.append({"factor": "RSI Overbought", "direction": "SELL", "weight": 2})
+        elif current_rsi > 60:
+            bearish_signals += 1
+            confluence_factors.append({"factor": "RSI High", "direction": "SELL", "weight": 1})
+
+        # EMA analysis
+        if current_price > ema_9 > ema_21:
+            bullish_signals += 2
+            confluence_factors.append({"factor": "Price > EMA9 > EMA21 (Bullish Trend)", "direction": "BUY", "weight": 2})
+        elif current_price < ema_9 < ema_21:
+            bearish_signals += 2
+            confluence_factors.append({"factor": "Price < EMA9 < EMA21 (Bearish Trend)", "direction": "SELL", "weight": 2})
+
+        # Mean reversion (price far from VWAP)
+        vwap_distance_pct = ((current_price - current_vwap) / current_vwap) * 100
+        if vwap_distance_pct < -0.3:
+            bullish_signals += 1
+            confluence_factors.append({"factor": f"Below VWAP ({vwap_distance_pct:.2f}%) - Reversion", "direction": "BUY", "weight": 1})
+        elif vwap_distance_pct > 0.3:
+            bearish_signals += 1
+            confluence_factors.append({"factor": f"Above VWAP (+{vwap_distance_pct:.2f}%) - Reversion", "direction": "SELL", "weight": 1})
+
+        # Session timing
+        if session_risk == "low":
+            confluence_factors.append({"factor": f"{session.name} - Low Manipulation Risk", "direction": "FAVORABLE", "weight": 1})
+        elif session_risk == "high" or session_risk == "highest":
+            confluence_factors.append({"factor": f"{session.name} - High Manipulation Risk", "direction": "CAUTION", "weight": -1})
+
+        # Key level proximity for entries
+        support_levels = [l for l in manipulation.key_levels if l.level_type == "SUPPORT"]
+        resistance_levels = [l for l in manipulation.key_levels if l.level_type == "RESISTANCE"]
+
+        nearest_support = min([l.price for l in support_levels], key=lambda x: abs(current_price - x), default=None) if support_levels else None
+        nearest_resistance = min([l.price for l in resistance_levels], key=lambda x: abs(current_price - x), default=None) if resistance_levels else None
+
+        if nearest_support and abs(current_price - nearest_support) < atr * 0.5:
+            bullish_signals += 1
+            confluence_factors.append({"factor": f"Near Support ${nearest_support:.2f}", "direction": "BUY", "weight": 1})
+
+        if nearest_resistance and abs(current_price - nearest_resistance) < atr * 0.5:
+            bearish_signals += 1
+            confluence_factors.append({"factor": f"Near Resistance ${nearest_resistance:.2f}", "direction": "SELL", "weight": 1})
+
+        # Manipulation alerts - reduce confidence during manipulation
+        if manipulation.active_alerts:
+            for alert in manipulation.active_alerts:
+                if alert.expected_reversal == "UP":
+                    bullish_signals += 1
+                    confluence_factors.append({"factor": f"{alert.manipulation_type.value} - Expected UP", "direction": "BUY", "weight": 1})
+                elif alert.expected_reversal == "DOWN":
+                    bearish_signals += 1
+                    confluence_factors.append({"factor": f"{alert.manipulation_type.value} - Expected DOWN", "direction": "SELL", "weight": 1})
+
+        # Calculate final direction and confidence
+        total_signals = bullish_signals + bearish_signals
+        if total_signals == 0:
+            action = "WAIT"
+            direction = None
+            confidence = 0
+        elif bullish_signals > bearish_signals:
+            direction = "BUY"
+            confidence = min(95, (bullish_signals / max(total_signals, 1)) * 100 * (1 - manipulation.overall_manipulation_score * 0.3))
+            if confidence >= 60 and session_risk not in ["high", "highest"]:
+                action = "BUY_NOW"
+            elif confidence >= 40:
+                action = "PREPARE_BUY"
+            else:
+                action = "WAIT"
+        else:
+            direction = "SELL"
+            confidence = min(95, (bearish_signals / max(total_signals, 1)) * 100 * (1 - manipulation.overall_manipulation_score * 0.3))
+            if confidence >= 60 and session_risk not in ["high", "highest"]:
+                action = "SELL_NOW"
+            elif confidence >= 40:
+                action = "PREPARE_SELL"
+            else:
+                action = "WAIT"
+
+        # Calculate entry, SL, and TP
+        if direction == "BUY":
+            entry = round(current_price, 2)
+            stop_loss = round(entry - scalp_sl, 2)
+            tp1 = round(entry + scalp_sl * 1.0, 2)  # 1:1 R:R
+            tp2 = round(entry + scalp_sl * 1.5, 2)  # 1.5:1 R:R
+            tp3 = round(entry + scalp_sl * 2.0, 2)  # 2:1 R:R
+        elif direction == "SELL":
+            entry = round(current_price, 2)
+            stop_loss = round(entry + scalp_sl, 2)
+            tp1 = round(entry - scalp_sl * 1.0, 2)
+            tp2 = round(entry - scalp_sl * 1.5, 2)
+            tp3 = round(entry - scalp_sl * 2.0, 2)
+        else:
+            entry = None
+            stop_loss = None
+            tp1 = tp2 = tp3 = None
+
+        # Build actionable suggestions
+        suggestions = []
+
+        # Primary suggestion based on action
+        if action == "BUY_NOW":
+            suggestions.append({
+                "priority": 1,
+                "type": "ENTRY",
+                "text": f"BUY {symbol} @ ${entry:.2f}",
+                "detail": f"Strong bullish confluence ({confidence:.0f}%). Set SL at ${stop_loss:.2f} (${scalp_sl:.2f} risk)"
+            })
+            suggestions.append({
+                "priority": 2,
+                "type": "TARGET",
+                "text": f"TP1: ${tp1:.2f} (+${scalp_sl:.2f}) | TP2: ${tp2:.2f} (+${scalp_sl*1.5:.2f})",
+                "detail": "Scale out 50% at TP1, trail stop to breakeven, take rest at TP2"
+            })
+        elif action == "SELL_NOW":
+            suggestions.append({
+                "priority": 1,
+                "type": "ENTRY",
+                "text": f"SELL {symbol} @ ${entry:.2f}",
+                "detail": f"Strong bearish confluence ({confidence:.0f}%). Set SL at ${stop_loss:.2f} (${scalp_sl:.2f} risk)"
+            })
+            suggestions.append({
+                "priority": 2,
+                "type": "TARGET",
+                "text": f"TP1: ${tp1:.2f} (-${scalp_sl:.2f}) | TP2: ${tp2:.2f} (-${scalp_sl*1.5:.2f})",
+                "detail": "Scale out 50% at TP1, trail stop to breakeven, take rest at TP2"
+            })
+        elif action == "PREPARE_BUY":
+            wait_price = nearest_support if nearest_support else round(current_price - atr * 0.3, 2)
+            suggestions.append({
+                "priority": 1,
+                "type": "ALERT",
+                "text": f"Set BUY limit @ ${wait_price:.2f}",
+                "detail": f"Wait for pullback to support. Current confidence: {confidence:.0f}%"
+            })
+        elif action == "PREPARE_SELL":
+            wait_price = nearest_resistance if nearest_resistance else round(current_price + atr * 0.3, 2)
+            suggestions.append({
+                "priority": 1,
+                "type": "ALERT",
+                "text": f"Set SELL limit @ ${wait_price:.2f}",
+                "detail": f"Wait for rally to resistance. Current confidence: {confidence:.0f}%"
+            })
+        else:
+            suggestions.append({
+                "priority": 1,
+                "type": "WAIT",
+                "text": "No clear scalp setup - STAY FLAT",
+                "detail": "Wait for stronger confluence. Preserve capital for A+ setups."
+            })
+
+        # Session-based suggestion
+        if session_risk in ["high", "highest"]:
+            suggestions.append({
+                "priority": 3,
+                "type": "WARNING",
+                "text": f"HIGH MANIPULATION RISK - {session.name}",
+                "detail": "Reduce position size by 50% or wait for next session"
+            })
+        elif session_risk == "low":
+            suggestions.append({
+                "priority": 3,
+                "type": "INFO",
+                "text": f"Favorable session: {session.name}",
+                "detail": "Good liquidity, lower manipulation risk - normal position sizing OK"
+            })
+
+        # Key level suggestion
+        if nearest_support and nearest_resistance:
+            range_size = nearest_resistance - nearest_support
+            price_in_range = (current_price - nearest_support) / range_size * 100
+            suggestions.append({
+                "priority": 4,
+                "type": "LEVELS",
+                "text": f"Range: ${nearest_support:.2f} - ${nearest_resistance:.2f}",
+                "detail": f"Price at {price_in_range:.0f}% of range. {'Near support - BUY zone' if price_in_range < 30 else 'Near resistance - SELL zone' if price_in_range > 70 else 'Mid-range - wait for extremes'}"
+            })
+
+        # Scalping rules reminder
+        suggestions.append({
+            "priority": 5,
+            "type": "RULES",
+            "text": "Scalp Rules: Max 2% risk | Cut losers fast | Lock profits quick",
+            "detail": "Move SL to breakeven after +0.5R. Never average down. Max 3 scalps/session."
+        })
+
+        return {
+            "symbol": symbol,
+            "current_price": round(current_price, 2),
+            "action": action,
+            "direction": direction,
+            "confidence": round(confidence, 1),
+            "entry": entry,
+            "stop_loss": stop_loss,
+            "take_profit_1": tp1,
+            "take_profit_2": tp2,
+            "take_profit_3": tp3,
+            "risk_amount": round(scalp_sl, 2),
+            "atr": round(atr, 2),
+            "rsi": round(current_rsi, 1),
+            "ema_9": round(ema_9, 2),
+            "ema_21": round(ema_21, 2),
+            "vwap": round(current_vwap, 2),
+            "session": session.name,
+            "session_risk": session_risk,
+            "manipulation_score": round(manipulation.overall_manipulation_score * 100, 0),
+            "confluence_factors": confluence_factors,
+            "suggestions": suggestions,
+            "timestamp": datetime.now().isoformat()
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Debug: Print routes when module is loaded
 print(f"[DEBUG] routes.py loaded, total routes: {len([r for r in router.routes if hasattr(r, 'path')])}")
 _metal_routes = [r.path for r in router.routes if hasattr(r, 'path') and 'metal' in r.path]
