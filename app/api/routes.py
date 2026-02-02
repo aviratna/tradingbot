@@ -795,6 +795,64 @@ async def get_trading_session() -> Dict[str, Any]:
     }
 
 
+@router.get("/api/metals/intelligence")
+async def get_market_intelligence() -> Dict[str, Any]:
+    """Get market intelligence summary for gold and silver."""
+    try:
+        loop = asyncio.get_event_loop()
+
+        # Get current prices and data
+        metals_data = await loop.run_in_executor(None, metals_fetcher.get_all_metals)
+        session = metals_fetcher.get_current_session()
+
+        # Get gold and silver data
+        gold_data = metals_data.get("XAU/USD")
+        silver_data = metals_data.get("XAG/USD")
+
+        gold_price = gold_data.current_price.price if gold_data else 0
+        gold_change = gold_data.current_price.change_percent if gold_data else 0
+        silver_price = silver_data.current_price.price if silver_data else 0
+        silver_change = silver_data.current_price.change_percent if silver_data else 0
+
+        # Generate dynamic summaries based on market conditions
+        gold_direction = "higher" if gold_change > 0 else "lower"
+        silver_direction = "higher" if silver_change > 0 else "lower"
+
+        gold_momentum = "bullish" if gold_change > 0.5 else "bearish" if gold_change < -0.5 else "neutral"
+        silver_momentum = "bullish" if silver_change > 0.5 else "bearish" if silver_change < -0.5 else "neutral"
+
+        # Session-based commentary
+        session_risk = session.manipulation_risk.lower()
+        session_name = session.name
+
+        return {
+            "gold": {
+                "price_action": f"Gold trading at ${gold_price:.2f}, {abs(gold_change):.2f}% {gold_direction} with {gold_momentum} momentum",
+                "drivers": "USD strength/weakness, Treasury yields, safe-haven demand, central bank buying",
+                "outlook": f"Current session ({session_name}) has {session_risk} manipulation risk. Watch for key level tests and volume spikes."
+            },
+            "silver": {
+                "price_action": f"Silver at ${silver_price:.2f}, {abs(silver_change):.2f}% {silver_direction} following gold with {silver_momentum} bias",
+                "drivers": "Industrial demand (solar, electronics), gold correlation, investment demand",
+                "outlook": f"Silver typically shows 1.5-2x gold volatility. Current gold/silver ratio indicates {'silver undervalued' if gold_price/silver_price > 80 else 'normal range' if gold_price/silver_price > 70 else 'silver overvalued'}."
+            },
+            "central_banks": {
+                "fed": "Fed monitoring inflation data. Rate decisions impact gold inversely through USD and real yields.",
+                "ecb": "ECB maintaining cautious stance. European demand for gold hedging remains steady.",
+                "gold_reserves": "Central banks globally continue net gold buying trend (China, India, Turkey leading)."
+            },
+            "contracts": {
+                "gold_expiry": "COMEX Gold (GC) - Active month contract, rollover typically 3-4 days before expiry",
+                "silver_expiry": "COMEX Silver (SI) - Following gold futures calendar",
+                "delivery_info": "Physical delivery 1st-3rd business day. LBMA London fix at 10:30 AM & 3:00 PM GMT."
+            },
+            "timestamp": datetime.now().isoformat()
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Debug: Print routes when module is loaded
 print(f"[DEBUG] routes.py loaded, total routes: {len([r for r in router.routes if hasattr(r, 'path')])}")
 _metal_routes = [r.path for r in router.routes if hasattr(r, 'path') and 'metal' in r.path]

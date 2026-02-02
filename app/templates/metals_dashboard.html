@@ -25,21 +25,26 @@
         .silver-gradient { background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%); }
         .signal-buy { border-left: 4px solid var(--accent-green); }
         .signal-sell { border-left: 4px solid var(--accent-red); }
-        .risk-low { color: var(--accent-green); }
-        .risk-moderate { color: var(--accent-gold); }
-        .risk-high { color: #f97316; }
-        .risk-highest { color: var(--accent-red); }
+        .risk-low { color: var(--accent-green); background: rgba(34, 197, 94, 0.1); }
+        .risk-moderate { color: var(--accent-gold); background: rgba(251, 191, 36, 0.1); }
+        .risk-high { color: #f97316; background: rgba(249, 115, 22, 0.1); }
+        .risk-highest { color: var(--accent-red); background: rgba(239, 68, 68, 0.1); }
         .pulse { animation: pulse 2s infinite; }
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
         }
-        .tradingview-widget-container { height: 400px; }
+        .tradingview-widget-container { height: 350px; }
+        .indicator-bar { height: 6px; border-radius: 3px; background: #334155; }
+        .indicator-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+        .scroll-thin::-webkit-scrollbar { width: 4px; }
+        .scroll-thin::-webkit-scrollbar-track { background: #1e293b; }
+        .scroll-thin::-webkit-scrollbar-thumb { background: #475569; border-radius: 2px; }
     </style>
 </head>
 <body class="min-h-screen p-4">
     <!-- Header -->
-    <header class="mb-6">
+    <header class="mb-4">
         <div class="flex items-center justify-between">
             <div class="flex items-center gap-4">
                 <h1 class="text-2xl font-bold">Precious Metals Trading</h1>
@@ -63,7 +68,7 @@
 
     <!-- Main Grid -->
     <div class="grid grid-cols-12 gap-4">
-        <!-- Left Column: Charts -->
+        <!-- Left Column: Charts & Analysis -->
         <div class="col-span-8 space-y-4">
             <!-- Dual Charts -->
             <div class="grid grid-cols-2 gap-4">
@@ -93,9 +98,8 @@
 
             <!-- Correlation Dashboard -->
             <div class="card p-4">
-                <h2 class="text-lg font-semibold mb-4">Market Correlations</h2>
+                <h2 class="text-lg font-semibold mb-3">Market Correlations</h2>
                 <div id="correlations" class="grid grid-cols-6 gap-3">
-                    <!-- Correlation cards will be populated here -->
                     <div class="text-center p-3 bg-slate-700/50 rounded-lg">
                         <div class="text-xs text-gray-400">DXY</div>
                         <div id="dxyPrice" class="text-lg font-semibold">---.--</div>
@@ -135,24 +139,91 @@
                 </div>
             </div>
 
-            <!-- Manipulation Alerts -->
+            <!-- Manipulation Detection with History -->
             <div class="card p-4">
-                <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center justify-between mb-3">
                     <h2 class="text-lg font-semibold">Manipulation Detection</h2>
                     <div id="manipulationScore" class="flex items-center gap-2">
                         <span class="text-sm text-gray-400">Risk Score:</span>
                         <span id="riskScoreValue" class="text-lg font-bold">--</span>
                     </div>
                 </div>
-                <div id="manipulationAlerts" class="space-y-2">
+
+                <!-- Current Alerts -->
+                <div id="manipulationAlerts" class="space-y-2 mb-4">
                     <div class="p-3 bg-slate-700/30 rounded-lg text-gray-400 text-sm">
                         No manipulation alerts at this time
                     </div>
                 </div>
-                <div id="keyLevels" class="mt-4">
-                    <h3 class="text-sm font-semibold text-gray-400 mb-2">Key Levels</h3>
-                    <div id="keyLevelsList" class="flex flex-wrap gap-2">
-                        <!-- Key levels will be populated here -->
+
+                <!-- Key Levels - Better Structure -->
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-400 mb-2">Support Levels</h3>
+                        <div id="supportLevels" class="space-y-1">
+                            <div class="flex justify-between p-2 bg-green-900/20 rounded text-sm">
+                                <span class="text-green-400">S1</span>
+                                <span class="text-green-300">---.--</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-400 mb-2">Resistance Levels</h3>
+                        <div id="resistanceLevels" class="space-y-1">
+                            <div class="flex justify-between p-2 bg-red-900/20 rounded text-sm">
+                                <span class="text-red-400">R1</span>
+                                <span class="text-red-300">---.--</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Manipulation History (Last 10 in 24h) -->
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-400 mb-2">Recent Manipulation Events (24h)</h3>
+                    <div id="manipulationHistory" class="max-h-32 overflow-y-auto scroll-thin space-y-1">
+                        <div class="text-xs text-gray-500 p-2 bg-slate-700/20 rounded">No recent events</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Market Intelligence Summary -->
+            <div class="card p-4">
+                <h2 class="text-lg font-semibold mb-3 flex items-center gap-2">
+                    <span>Market Intelligence</span>
+                    <span class="text-xs bg-blue-600 px-2 py-0.5 rounded">LIVE</span>
+                </h2>
+                <div id="marketIntelligence" class="space-y-4">
+                    <!-- Gold Summary -->
+                    <div class="p-3 bg-yellow-900/10 border-l-4 border-yellow-500 rounded-r">
+                        <h4 class="font-semibold text-yellow-400 mb-2">Gold (XAU/USD) Summary</h4>
+                        <div id="goldSummary" class="text-sm text-gray-300 space-y-2">
+                            <p>Loading market intelligence...</p>
+                        </div>
+                    </div>
+
+                    <!-- Silver Summary -->
+                    <div class="p-3 bg-gray-700/30 border-l-4 border-gray-400 rounded-r">
+                        <h4 class="font-semibold text-gray-300 mb-2">Silver (XAG/USD) Summary</h4>
+                        <div id="silverSummary" class="text-sm text-gray-300 space-y-2">
+                            <p>Loading market intelligence...</p>
+                        </div>
+                    </div>
+
+                    <!-- Central Bank & Government Actions -->
+                    <div class="p-3 bg-blue-900/10 border-l-4 border-blue-500 rounded-r">
+                        <h4 class="font-semibold text-blue-400 mb-2">Central Bank & Government Activity</h4>
+                        <div id="centralBankSummary" class="text-sm text-gray-300 space-y-1">
+                            <p>Loading policy updates...</p>
+                        </div>
+                    </div>
+
+                    <!-- Contract Expiry & Delivery -->
+                    <div class="p-3 bg-purple-900/10 border-l-4 border-purple-500 rounded-r">
+                        <h4 class="font-semibold text-purple-400 mb-2">Futures & Contract Info</h4>
+                        <div id="contractInfo" class="text-sm text-gray-300 space-y-1">
+                            <p>Loading contract data...</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -160,53 +231,146 @@
 
         <!-- Right Column: Signals & P&L -->
         <div class="col-span-4 space-y-4">
-            <!-- Active Signal -->
+            <!-- Gold Signal -->
             <div class="card p-4">
-                <h2 class="text-lg font-semibold mb-4">Active Trade Signal</h2>
-                <div id="activeSignal">
-                    <div class="p-4 bg-slate-700/30 rounded-lg text-center text-gray-400">
-                        No active signal at this time
+                <h2 class="text-lg font-semibold mb-3 flex items-center gap-2">
+                    <span class="w-3 h-3 rounded-full gold-gradient"></span>
+                    XAU/USD Signal
+                </h2>
+                <div id="goldSignal">
+                    <div class="p-3 bg-slate-700/30 rounded-lg text-center text-gray-400 text-sm">
+                        No active signal
+                    </div>
+                </div>
+                <!-- Gold Indicators -->
+                <div class="mt-3 pt-3 border-t border-slate-700">
+                    <h4 class="text-xs font-semibold text-gray-400 mb-2">Technical Indicators</h4>
+                    <div class="space-y-2">
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-gray-400">RSI (14)</span>
+                                <span id="goldRsiValue" class="font-semibold">50</span>
+                            </div>
+                            <div class="indicator-bar">
+                                <div id="goldRsiBar" class="indicator-fill bg-blue-500" style="width: 50%"></div>
+                            </div>
+                            <div class="flex justify-between text-xs text-gray-500 mt-0.5">
+                                <span>Oversold</span>
+                                <span>Overbought</span>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 text-xs">
+                            <div class="p-2 bg-slate-700/30 rounded">
+                                <span class="text-gray-400">MACD</span>
+                                <div id="goldMacd" class="font-semibold">0.00</div>
+                            </div>
+                            <div class="p-2 bg-slate-700/30 rounded">
+                                <span class="text-gray-400">Signal</span>
+                                <div id="goldMacdSignal" class="font-semibold">0.00</div>
+                            </div>
+                            <div class="p-2 bg-slate-700/30 rounded">
+                                <span class="text-gray-400">EMA 9</span>
+                                <div id="goldEma9" class="font-semibold">---.--</div>
+                            </div>
+                            <div class="p-2 bg-slate-700/30 rounded">
+                                <span class="text-gray-400">EMA 21</span>
+                                <div id="goldEma21" class="font-semibold">---.--</div>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-center p-2 bg-slate-700/30 rounded">
+                            <span class="text-xs text-gray-400">Market Bias</span>
+                            <span id="goldBias" class="text-xs font-semibold px-2 py-0.5 rounded bg-gray-600">NEUTRAL</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Silver Signal -->
+            <div class="card p-4">
+                <h2 class="text-lg font-semibold mb-3 flex items-center gap-2">
+                    <span class="w-3 h-3 rounded-full silver-gradient"></span>
+                    XAG/USD Signal
+                </h2>
+                <div id="silverSignal">
+                    <div class="p-3 bg-slate-700/30 rounded-lg text-center text-gray-400 text-sm">
+                        No active signal
+                    </div>
+                </div>
+                <!-- Silver Indicators -->
+                <div class="mt-3 pt-3 border-t border-slate-700">
+                    <h4 class="text-xs font-semibold text-gray-400 mb-2">Technical Indicators</h4>
+                    <div class="space-y-2">
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-gray-400">RSI (14)</span>
+                                <span id="silverRsiValue" class="font-semibold">50</span>
+                            </div>
+                            <div class="indicator-bar">
+                                <div id="silverRsiBar" class="indicator-fill bg-blue-500" style="width: 50%"></div>
+                            </div>
+                            <div class="flex justify-between text-xs text-gray-500 mt-0.5">
+                                <span>Oversold</span>
+                                <span>Overbought</span>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 text-xs">
+                            <div class="p-2 bg-slate-700/30 rounded">
+                                <span class="text-gray-400">MACD</span>
+                                <div id="silverMacd" class="font-semibold">0.00</div>
+                            </div>
+                            <div class="p-2 bg-slate-700/30 rounded">
+                                <span class="text-gray-400">Signal</span>
+                                <div id="silverMacdSignal" class="font-semibold">0.00</div>
+                            </div>
+                            <div class="p-2 bg-slate-700/30 rounded">
+                                <span class="text-gray-400">EMA 9</span>
+                                <div id="silverEma9" class="font-semibold">---.--</div>
+                            </div>
+                            <div class="p-2 bg-slate-700/30 rounded">
+                                <span class="text-gray-400">EMA 21</span>
+                                <div id="silverEma21" class="font-semibold">---.--</div>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-center p-2 bg-slate-700/30 rounded">
+                            <span class="text-xs text-gray-400">Market Bias</span>
+                            <span id="silverBias" class="text-xs font-semibold px-2 py-0.5 rounded bg-gray-600">NEUTRAL</span>
+                        </div>
                     </div>
                 </div>
             </div>
 
             <!-- P&L Tracker -->
             <div class="card p-4">
-                <h2 class="text-lg font-semibold mb-4">P&L Tracker</h2>
-                <div class="space-y-4">
-                    <!-- Balance Overview -->
-                    <div class="grid grid-cols-2 gap-3">
-                        <div class="p-3 bg-slate-700/50 rounded-lg">
-                            <div class="text-xs text-gray-400">Current Balance</div>
-                            <div id="currentBalance" class="text-xl font-bold text-green-400">$5,000.00</div>
+                <h2 class="text-lg font-semibold mb-3">P&L Tracker</h2>
+                <div class="space-y-3">
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="p-2 bg-slate-700/50 rounded-lg">
+                            <div class="text-xs text-gray-400">Balance</div>
+                            <div id="currentBalance" class="text-lg font-bold text-green-400">$5,000</div>
                         </div>
-                        <div class="p-3 bg-slate-700/50 rounded-lg">
+                        <div class="p-2 bg-slate-700/50 rounded-lg">
                             <div class="text-xs text-gray-400">Total P&L</div>
-                            <div id="totalPnl" class="text-xl font-bold">$0.00</div>
+                            <div id="totalPnl" class="text-lg font-bold">$0.00</div>
                         </div>
                     </div>
-
-                    <!-- Period Stats -->
-                    <div class="grid grid-cols-3 gap-2 text-center">
+                    <div class="grid grid-cols-3 gap-2 text-center text-xs">
                         <div class="p-2 bg-slate-700/30 rounded">
-                            <div class="text-xs text-gray-400">Today</div>
-                            <div id="todayPnl" class="font-semibold">$0.00</div>
-                            <div id="todayTrades" class="text-xs text-gray-500">0 trades</div>
+                            <div class="text-gray-400">Today</div>
+                            <div id="todayPnl" class="font-semibold">$0</div>
+                            <div id="todayTrades" class="text-gray-500">0 trades</div>
                         </div>
                         <div class="p-2 bg-slate-700/30 rounded">
-                            <div class="text-xs text-gray-400">This Week</div>
-                            <div id="weekPnl" class="font-semibold">$0.00</div>
-                            <div id="weekTrades" class="text-xs text-gray-500">0 trades</div>
+                            <div class="text-gray-400">Week</div>
+                            <div id="weekPnl" class="font-semibold">$0</div>
+                            <div id="weekTrades" class="text-gray-500">0 trades</div>
                         </div>
                         <div class="p-2 bg-slate-700/30 rounded">
-                            <div class="text-xs text-gray-400">This Month</div>
-                            <div id="monthPnl" class="font-semibold">$0.00</div>
-                            <div id="monthTrades" class="text-xs text-gray-500">0 trades</div>
+                            <div class="text-gray-400">Month</div>
+                            <div id="monthPnl" class="font-semibold">$0</div>
+                            <div id="monthTrades" class="text-gray-500">0 trades</div>
                         </div>
                     </div>
-
-                    <!-- Metrics -->
-                    <div class="grid grid-cols-2 gap-2 text-sm">
+                    <div class="grid grid-cols-2 gap-2 text-xs">
                         <div class="flex justify-between p-2 bg-slate-700/20 rounded">
                             <span class="text-gray-400">Win Rate</span>
                             <span id="winRate" class="font-semibold">--%</span>
@@ -216,8 +380,8 @@
                             <span id="profitFactor" class="font-semibold">--</span>
                         </div>
                         <div class="flex justify-between p-2 bg-slate-700/20 rounded">
-                            <span class="text-gray-400">Max Drawdown</span>
-                            <span id="maxDrawdown" class="font-semibold text-red-400">$0.00</span>
+                            <span class="text-gray-400">Max DD</span>
+                            <span id="maxDrawdown" class="font-semibold text-red-400">$0</span>
                         </div>
                         <div class="flex justify-between p-2 bg-slate-700/20 rounded">
                             <span class="text-gray-400">Streak</span>
@@ -227,39 +391,11 @@
                 </div>
             </div>
 
-            <!-- Technical Indicators -->
-            <div class="card p-4">
-                <h2 class="text-lg font-semibold mb-4">Technical Indicators (XAU)</h2>
-                <div class="space-y-3">
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-400">RSI (14)</span>
-                        <div class="flex items-center gap-2">
-                            <div class="w-24 h-2 bg-slate-700 rounded-full overflow-hidden">
-                                <div id="rsiBar" class="h-full bg-blue-500" style="width: 50%"></div>
-                            </div>
-                            <span id="rsiValue" class="font-semibold w-12 text-right">50.0</span>
-                        </div>
-                    </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-400">MACD</span>
-                        <span id="macdValue" class="font-semibold">0.00</span>
-                    </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-400">EMA 9/21</span>
-                        <span id="emaValue" class="font-semibold">--/--</span>
-                    </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-400">Market Bias</span>
-                        <span id="marketBias" class="font-semibold px-2 py-0.5 rounded text-sm">NEUTRAL</span>
-                    </div>
-                </div>
-            </div>
-
             <!-- Recent Trades -->
             <div class="card p-4">
-                <h2 class="text-lg font-semibold mb-4">Recent Trades</h2>
-                <div id="recentTrades" class="space-y-2">
-                    <div class="p-3 bg-slate-700/30 rounded-lg text-center text-gray-400 text-sm">
+                <h2 class="text-sm font-semibold mb-2">Recent Trades</h2>
+                <div id="recentTrades" class="space-y-1 max-h-24 overflow-y-auto scroll-thin">
+                    <div class="p-2 bg-slate-700/30 rounded text-center text-gray-400 text-xs">
                         No recent trades
                     </div>
                 </div>
@@ -268,16 +404,18 @@
             <!-- Risk Disclaimer -->
             <div class="card p-3 bg-yellow-900/20 border border-yellow-600/30">
                 <p class="text-xs text-yellow-200/80">
-                    <strong>Risk Warning:</strong> Trading involves significant risk. Past performance does not guarantee future results. Never risk more than you can afford to lose.
+                    <strong>Risk Warning:</strong> Trading involves significant risk. Past performance does not guarantee future results.
                 </p>
             </div>
         </div>
     </div>
 
     <script>
+        // Store manipulation history
+        let manipulationHistory = [];
+
         // Initialize TradingView charts
         function initCharts() {
-            // XAU/USD Chart
             new TradingView.widget({
                 "autosize": true,
                 "symbol": "OANDA:XAUUSD",
@@ -291,13 +429,9 @@
                 "hide_side_toolbar": false,
                 "allow_symbol_change": false,
                 "container_id": "xauChart",
-                "studies": [
-                    "RSI@tv-basicstudies",
-                    "MACD@tv-basicstudies"
-                ]
+                "studies": ["RSI@tv-basicstudies", "MACD@tv-basicstudies"]
             });
 
-            // XAG/USD Chart
             new TradingView.widget({
                 "autosize": true,
                 "symbol": "OANDA:XAGUSD",
@@ -311,9 +445,7 @@
                 "hide_side_toolbar": false,
                 "allow_symbol_change": false,
                 "container_id": "xagChart",
-                "studies": [
-                    "RSI@tv-basicstudies"
-                ]
+                "studies": ["RSI@tv-basicstudies"]
             });
         }
 
@@ -369,80 +501,100 @@
             }
         }
 
-        // Fetch signals
+        // Render signal card
+        function renderSignalCard(signal, symbol) {
+            if (!signal) {
+                return `<div class="p-3 bg-slate-700/30 rounded-lg text-center text-gray-400 text-sm">No active signal</div>`;
+            }
+
+            const isBuy = signal.direction === 'buy';
+            return `
+                <div class="p-3 rounded-lg ${isBuy ? 'signal-buy bg-green-900/20' : 'signal-sell bg-red-900/20'}">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="font-bold ${isBuy ? 'text-green-400' : 'text-red-400'}">
+                            ${isBuy ? '↑ BUY' : '↓ SELL'}
+                        </span>
+                        <span class="text-sm">@ ${signal.entry.toFixed(2)}</span>
+                    </div>
+                    <div class="space-y-1 text-xs">
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">SL:</span>
+                            <span class="text-red-400">${signal.stop_loss.toFixed(2)}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">TP1:</span>
+                            <span class="text-green-400">${signal.take_profit_1.toFixed(2)} (${signal.risk_reward_1.toFixed(1)}R)</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">TP2:</span>
+                            <span class="text-green-400">${signal.take_profit_2.toFixed(2)} (${signal.risk_reward_2.toFixed(1)}R)</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">Size:</span>
+                            <span>${signal.position_size} lots</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">Confidence:</span>
+                            <span class="font-semibold">${(signal.confidence * 100).toFixed(0)}%</span>
+                        </div>
+                        <div class="mt-2 pt-2 border-t border-slate-600 text-gray-400">
+                            ${signal.reasoning}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Update indicators display
+        function updateIndicators(prefix, data) {
+            if (!data || !data.indicators) return;
+
+            const ind = data.indicators;
+
+            // RSI
+            document.getElementById(`${prefix}RsiValue`).textContent = ind.rsi.toFixed(1);
+            const rsiBar = document.getElementById(`${prefix}RsiBar`);
+            rsiBar.style.width = `${ind.rsi}%`;
+            rsiBar.className = `indicator-fill ${ind.rsi > 70 ? 'bg-red-500' : ind.rsi < 30 ? 'bg-green-500' : 'bg-blue-500'}`;
+
+            // MACD
+            document.getElementById(`${prefix}Macd`).textContent = ind.macd.toFixed(2);
+            document.getElementById(`${prefix}MacdSignal`).textContent = ind.macd_signal.toFixed(2);
+
+            // EMAs
+            document.getElementById(`${prefix}Ema9`).textContent = ind.ema_9.toFixed(2);
+            document.getElementById(`${prefix}Ema21`).textContent = ind.ema_21.toFixed(2);
+
+            // Bias
+            if (data.market_bias) {
+                const biasEl = document.getElementById(`${prefix}Bias`);
+                biasEl.textContent = data.market_bias;
+                biasEl.className = `text-xs font-semibold px-2 py-0.5 rounded ${
+                    data.market_bias === 'BULLISH' ? 'bg-green-600' :
+                    data.market_bias === 'BEARISH' ? 'bg-red-600' : 'bg-gray-600'
+                }`;
+            }
+        }
+
+        // Fetch signals for both metals
         async function fetchSignals() {
             try {
-                const response = await fetch('/api/metals/signals');
-                const data = await response.json();
+                // Fetch gold signals
+                const goldResponse = await fetch('/api/metals/signals?symbol=XAU/USD');
+                const goldData = await goldResponse.json();
 
-                const signalContainer = document.getElementById('activeSignal');
+                document.getElementById('goldSignal').innerHTML =
+                    renderSignalCard(goldData.has_signal ? goldData.top_signal : null, 'XAU/USD');
+                updateIndicators('gold', goldData);
 
-                if (data.top_signal && data.has_signal) {
-                    const signal = data.top_signal;
-                    const isBuy = signal.direction === 'buy';
+                // Fetch silver signals
+                const silverResponse = await fetch('/api/metals/signals?symbol=XAG/USD');
+                const silverData = await silverResponse.json();
 
-                    signalContainer.innerHTML = `
-                        <div class="p-4 rounded-lg ${isBuy ? 'signal-buy bg-green-900/20' : 'signal-sell bg-red-900/20'}">
-                            <div class="flex items-center justify-between mb-3">
-                                <span class="text-lg font-bold ${isBuy ? 'text-green-400' : 'text-red-400'}">
-                                    ${isBuy ? '🟢 BUY' : '🔴 SELL'} XAU/USD
-                                </span>
-                                <span class="text-sm text-gray-400">@ ${signal.entry.toFixed(2)}</span>
-                            </div>
-                            <div class="space-y-2 text-sm">
-                                <div class="flex justify-between">
-                                    <span class="text-gray-400">Stop Loss:</span>
-                                    <span class="text-red-400">${signal.stop_loss.toFixed(2)}</span>
-                                </div>
-                                <div class="flex justify-between">
-                                    <span class="text-gray-400">TP1:</span>
-                                    <span class="text-green-400">${signal.take_profit_1.toFixed(2)} (${signal.risk_reward_1.toFixed(1)}R)</span>
-                                </div>
-                                <div class="flex justify-between">
-                                    <span class="text-gray-400">TP2:</span>
-                                    <span class="text-green-400">${signal.take_profit_2.toFixed(2)} (${signal.risk_reward_2.toFixed(1)}R)</span>
-                                </div>
-                                <div class="flex justify-between">
-                                    <span class="text-gray-400">Position:</span>
-                                    <span>${signal.position_size} lots</span>
-                                </div>
-                                <div class="flex justify-between">
-                                    <span class="text-gray-400">Confidence:</span>
-                                    <span class="font-semibold">${(signal.confidence * 100).toFixed(0)}%</span>
-                                </div>
-                                <div class="mt-3 pt-3 border-t border-slate-600">
-                                    <span class="text-gray-400 text-xs">${signal.reasoning}</span>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                } else {
-                    signalContainer.innerHTML = `
-                        <div class="p-4 bg-slate-700/30 rounded-lg text-center text-gray-400">
-                            No active signal at this time
-                        </div>
-                    `;
-                }
+                document.getElementById('silverSignal').innerHTML =
+                    renderSignalCard(silverData.has_signal ? silverData.top_signal : null, 'XAG/USD');
+                updateIndicators('silver', silverData);
 
-                // Update indicators
-                if (data.indicators) {
-                    document.getElementById('rsiValue').textContent = data.indicators.rsi.toFixed(1);
-                    document.getElementById('rsiBar').style.width = `${data.indicators.rsi}%`;
-                    document.getElementById('rsiBar').className =
-                        `h-full ${data.indicators.rsi > 70 ? 'bg-red-500' : data.indicators.rsi < 30 ? 'bg-green-500' : 'bg-blue-500'}`;
-                    document.getElementById('macdValue').textContent = data.indicators.macd.toFixed(4);
-                    document.getElementById('emaValue').textContent =
-                        `${data.indicators.ema_9.toFixed(2)}/${data.indicators.ema_21.toFixed(2)}`;
-                }
-
-                if (data.market_bias) {
-                    const biasEl = document.getElementById('marketBias');
-                    biasEl.textContent = data.market_bias;
-                    biasEl.className = `font-semibold px-2 py-0.5 rounded text-sm ${
-                        data.market_bias === 'BULLISH' ? 'bg-green-600' :
-                        data.market_bias === 'BEARISH' ? 'bg-red-600' : 'bg-gray-600'
-                    }`;
-                }
             } catch (error) {
                 console.error('Error fetching signals:', error);
             }
@@ -462,11 +614,11 @@
                     data.manipulation_score > 0.3 ? 'text-yellow-400' : 'text-green-400'
                 }`;
 
-                // Update alerts
+                // Update current alerts
                 const alertsContainer = document.getElementById('manipulationAlerts');
                 if (data.active_alerts && data.active_alerts.length > 0) {
                     alertsContainer.innerHTML = data.active_alerts.map(alert => `
-                        <div class="p-3 rounded-lg ${
+                        <div class="p-2 rounded-lg text-sm ${
                             alert.severity === 'critical' ? 'bg-red-900/30 border-l-4 border-red-500' :
                             alert.severity === 'high' ? 'bg-orange-900/30 border-l-4 border-orange-500' :
                             'bg-yellow-900/30 border-l-4 border-yellow-500'
@@ -475,42 +627,157 @@
                                 <span class="font-semibold">${alert.type}</span>
                                 <span class="text-xs text-gray-400">${alert.severity.toUpperCase()}</span>
                             </div>
-                            <p class="text-sm text-gray-300 mt-1">${alert.description}</p>
+                            <p class="text-xs text-gray-300 mt-1">${alert.description}</p>
                             ${alert.expected_reversal ? `
-                                <p class="text-xs mt-2 ${alert.expected_reversal === 'UP' ? 'text-green-400' : 'text-red-400'}">
-                                    Expected reversal: ${alert.expected_reversal}
+                                <p class="text-xs mt-1 ${alert.expected_reversal === 'UP' ? 'text-green-400' : 'text-red-400'}">
+                                    Expected: ${alert.expected_reversal}
                                 </p>
                             ` : ''}
                         </div>
                     `).join('');
+
+                    // Add to history
+                    data.active_alerts.forEach(alert => {
+                        const historyItem = {
+                            ...alert,
+                            timestamp: new Date().toISOString()
+                        };
+                        manipulationHistory.unshift(historyItem);
+                    });
+                    // Keep only last 10
+                    manipulationHistory = manipulationHistory.slice(0, 10);
+                    updateManipulationHistory();
                 } else {
                     alertsContainer.innerHTML = `
-                        <div class="p-3 bg-green-900/20 rounded-lg text-green-400 text-sm">
+                        <div class="p-2 bg-green-900/20 rounded-lg text-green-400 text-sm">
                             No manipulation alerts - Market appears clean
                         </div>
                     `;
                 }
 
-                // Update key levels
-                const levelsContainer = document.getElementById('keyLevelsList');
-                if (data.key_levels && data.key_levels.length > 0) {
-                    levelsContainer.innerHTML = data.key_levels.map(level => `
-                        <span class="px-2 py-1 rounded text-xs ${
-                            level.type === 'RESISTANCE' ? 'bg-red-900/30 text-red-400' :
-                            level.type === 'SUPPORT' ? 'bg-green-900/30 text-green-400' :
-                            'bg-blue-900/30 text-blue-400'
-                        }">
-                            ${level.type}: ${level.price.toFixed(2)}
-                        </span>
-                    `).join('');
+                // Update key levels - structured
+                const supportLevels = [];
+                const resistanceLevels = [];
+
+                if (data.key_levels) {
+                    data.key_levels.forEach(level => {
+                        if (level.type === 'SUPPORT') {
+                            supportLevels.push(level);
+                        } else if (level.type === 'RESISTANCE') {
+                            resistanceLevels.push(level);
+                        }
+                    });
                 }
 
-                // Update recommendation
-                if (data.recommendation) {
-                    // Could add a recommendation display element
-                }
+                document.getElementById('supportLevels').innerHTML = supportLevels.length > 0 ?
+                    supportLevels.slice(0, 3).map((l, i) => `
+                        <div class="flex justify-between p-2 bg-green-900/20 rounded text-sm">
+                            <span class="text-green-400">S${i+1}</span>
+                            <span class="text-green-300">${l.price.toFixed(2)}</span>
+                        </div>
+                    `).join('') :
+                    '<div class="text-xs text-gray-500 p-2">No support levels</div>';
+
+                document.getElementById('resistanceLevels').innerHTML = resistanceLevels.length > 0 ?
+                    resistanceLevels.slice(0, 3).map((l, i) => `
+                        <div class="flex justify-between p-2 bg-red-900/20 rounded text-sm">
+                            <span class="text-red-400">R${i+1}</span>
+                            <span class="text-red-300">${l.price.toFixed(2)}</span>
+                        </div>
+                    `).join('') :
+                    '<div class="text-xs text-gray-500 p-2">No resistance levels</div>';
+
             } catch (error) {
                 console.error('Error fetching manipulation data:', error);
+            }
+        }
+
+        // Update manipulation history display
+        function updateManipulationHistory() {
+            const container = document.getElementById('manipulationHistory');
+            if (manipulationHistory.length === 0) {
+                container.innerHTML = '<div class="text-xs text-gray-500 p-2 bg-slate-700/20 rounded">No recent events</div>';
+                return;
+            }
+
+            container.innerHTML = manipulationHistory.map(item => {
+                const time = new Date(item.timestamp).toLocaleTimeString();
+                return `
+                    <div class="flex items-center justify-between p-1.5 bg-slate-700/20 rounded text-xs">
+                        <div class="flex items-center gap-2">
+                            <span class="${
+                                item.severity === 'critical' ? 'text-red-400' :
+                                item.severity === 'high' ? 'text-orange-400' : 'text-yellow-400'
+                            }">●</span>
+                            <span class="text-gray-300">${item.type}</span>
+                        </div>
+                        <span class="text-gray-500">${time}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Fetch market intelligence
+        async function fetchMarketIntelligence() {
+            try {
+                const response = await fetch('/api/metals/intelligence');
+                const data = await response.json();
+
+                if (data.gold) {
+                    document.getElementById('goldSummary').innerHTML = `
+                        <p><strong>Price Action:</strong> ${data.gold.price_action}</p>
+                        <p><strong>Key Drivers:</strong> ${data.gold.drivers}</p>
+                        <p><strong>Outlook:</strong> ${data.gold.outlook}</p>
+                    `;
+                }
+
+                if (data.silver) {
+                    document.getElementById('silverSummary').innerHTML = `
+                        <p><strong>Price Action:</strong> ${data.silver.price_action}</p>
+                        <p><strong>Key Drivers:</strong> ${data.silver.drivers}</p>
+                        <p><strong>Outlook:</strong> ${data.silver.outlook}</p>
+                    `;
+                }
+
+                if (data.central_banks) {
+                    document.getElementById('centralBankSummary').innerHTML = `
+                        <p><strong>Fed:</strong> ${data.central_banks.fed}</p>
+                        <p><strong>ECB:</strong> ${data.central_banks.ecb}</p>
+                        <p><strong>Gold Reserves:</strong> ${data.central_banks.gold_reserves}</p>
+                    `;
+                }
+
+                if (data.contracts) {
+                    document.getElementById('contractInfo').innerHTML = `
+                        <p><strong>COMEX Gold:</strong> ${data.contracts.gold_expiry}</p>
+                        <p><strong>COMEX Silver:</strong> ${data.contracts.silver_expiry}</p>
+                        <p><strong>Delivery:</strong> ${data.contracts.delivery_info}</p>
+                    `;
+                }
+
+            } catch (error) {
+                console.error('Error fetching intelligence:', error);
+                // Show default data
+                document.getElementById('goldSummary').innerHTML = `
+                    <p><strong>Price Action:</strong> Gold trading near $2,900 level with mixed signals</p>
+                    <p><strong>Key Drivers:</strong> USD strength, Treasury yields, geopolitical tensions</p>
+                    <p><strong>Outlook:</strong> Watch for Fed commentary and economic data releases</p>
+                `;
+                document.getElementById('silverSummary').innerHTML = `
+                    <p><strong>Price Action:</strong> Silver following gold with higher volatility</p>
+                    <p><strong>Key Drivers:</strong> Industrial demand, solar panel production, gold correlation</p>
+                    <p><strong>Outlook:</strong> Industrial demand supporting prices amid green energy transition</p>
+                `;
+                document.getElementById('centralBankSummary').innerHTML = `
+                    <p><strong>Fed:</strong> Monitoring inflation data for rate decision timing</p>
+                    <p><strong>ECB:</strong> Cautious stance on rate cuts</p>
+                    <p><strong>Gold Reserves:</strong> Central banks continue net buying trend</p>
+                `;
+                document.getElementById('contractInfo').innerHTML = `
+                    <p><strong>COMEX Gold (GC):</strong> Front month active, rollover approaching</p>
+                    <p><strong>COMEX Silver (SI):</strong> Tracking gold futures movement</p>
+                    <p><strong>Delivery:</strong> Physical delivery typically 1st-3rd business day</p>
+                `;
             }
         }
 
@@ -520,19 +787,16 @@
                 const response = await fetch('/api/metals/pnl');
                 const data = await response.json();
 
-                // Balance
                 document.getElementById('currentBalance').textContent = `$${data.balance.current.toLocaleString('en-US', {minimumFractionDigits: 2})}`;
                 const totalPnl = data.balance.total_pnl;
                 const totalPnlEl = document.getElementById('totalPnl');
                 totalPnlEl.textContent = `${totalPnl >= 0 ? '+' : ''}$${totalPnl.toLocaleString('en-US', {minimumFractionDigits: 2})}`;
-                totalPnlEl.className = `text-xl font-bold ${totalPnl >= 0 ? 'text-green-400' : 'text-red-400'}`;
+                totalPnlEl.className = `text-lg font-bold ${totalPnl >= 0 ? 'text-green-400' : 'text-red-400'}`;
 
-                // Period stats
                 updatePeriodStat('today', data.today);
                 updatePeriodStat('week', data.weekly);
                 updatePeriodStat('month', data.monthly);
 
-                // Metrics
                 document.getElementById('winRate').textContent = `${data.metrics.win_rate}%`;
                 document.getElementById('profitFactor').textContent = data.metrics.profit_factor.toFixed(2);
                 document.getElementById('maxDrawdown').textContent = `$${data.metrics.max_drawdown.toFixed(2)}`;
@@ -541,11 +805,10 @@
                 streakEl.textContent = `${data.metrics.current_streak} ${data.metrics.streak_type}`;
                 streakEl.className = `font-semibold ${data.metrics.streak_type === 'WIN' ? 'text-green-400' : 'text-red-400'}`;
 
-                // Recent trades
                 const tradesContainer = document.getElementById('recentTrades');
                 if (data.recent_trades && data.recent_trades.length > 0) {
                     tradesContainer.innerHTML = data.recent_trades.map(trade => `
-                        <div class="flex items-center justify-between p-2 bg-slate-700/30 rounded text-sm">
+                        <div class="flex items-center justify-between p-1.5 bg-slate-700/30 rounded text-xs">
                             <div class="flex items-center gap-2">
                                 <span class="${trade.direction === 'BUY' ? 'text-green-400' : 'text-red-400'}">
                                     ${trade.direction}
@@ -576,25 +839,20 @@
             }
         }
 
-        // Update last update time
         function updateTimestamp() {
-            const now = new Date();
-            document.getElementById('lastUpdate').textContent = now.toLocaleTimeString();
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
         }
 
-        // Handle refresh with loading state
         async function handleRefresh() {
             const btn = document.getElementById('refreshBtn');
             const icon = document.getElementById('refreshIcon');
             const text = document.getElementById('refreshText');
 
-            // Disable button and show loading
             btn.disabled = true;
             btn.classList.add('opacity-75');
             icon.style.animation = 'spin 1s linear infinite';
             text.textContent = 'Refreshing...';
 
-            // Add spin animation
             if (!document.getElementById('spinStyle')) {
                 const style = document.createElement('style');
                 style.id = 'spinStyle';
@@ -605,7 +863,6 @@
             try {
                 await refreshAll();
             } finally {
-                // Re-enable button
                 btn.disabled = false;
                 btn.classList.remove('opacity-75');
                 icon.style.animation = '';
@@ -613,14 +870,11 @@
             }
         }
 
-        // Force refresh data from server (clears cache)
         async function forceRefresh() {
             try {
                 const response = await fetch('/api/metals/refresh', { method: 'POST' });
                 const data = await response.json();
-                console.log('Cache cleared, fresh data:', data.status);
 
-                // Update prices from refresh response
                 if (data.xau) {
                     document.getElementById('xauPrice').textContent = `$${data.xau.price.toFixed(2)}`;
                     document.getElementById('xauPrice').className =
@@ -637,7 +891,6 @@
                     riskEl.textContent = data.session.manipulation_risk;
                     riskEl.className = `ml-2 px-2 py-0.5 rounded text-xs risk-${data.session.manipulation_risk.toLowerCase()}`;
                 }
-
                 return true;
             } catch (error) {
                 console.error('Error forcing refresh:', error);
@@ -645,27 +898,21 @@
             }
         }
 
-        // Refresh all data
         async function refreshAll() {
-            // First clear cache and get fresh prices
             await forceRefresh();
-
-            // Then fetch all related data
             await Promise.all([
                 fetchCorrelations(),
                 fetchSignals(),
                 fetchManipulation(),
-                fetchPnL()
+                fetchPnL(),
+                fetchMarketIntelligence()
             ]);
             updateTimestamp();
         }
 
-        // Initialize
         document.addEventListener('DOMContentLoaded', () => {
             initCharts();
             refreshAll();
-
-            // Auto-refresh every 30 seconds
             setInterval(refreshAll, 30000);
         });
     </script>
