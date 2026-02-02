@@ -637,11 +637,21 @@ async def get_manipulation_analysis(
         etf_price = df['close'].iloc[-1] if not df.empty else 1
         scale_factor = spot_price / etf_price if etf_price > 0 else 1
 
-        # Run manipulation analysis
-        analysis = manipulation_detector.analyze(df, symbol)
+        # Scale DataFrame to spot prices BEFORE analysis
+        # This ensures all detected levels and alert descriptions use spot prices
+        scaled_df = df.copy()
+        scaled_df['open'] = df['open'] * scale_factor
+        scaled_df['high'] = df['high'] * scale_factor
+        scaled_df['low'] = df['low'] * scale_factor
+        scaled_df['close'] = df['close'] * scale_factor
+        # Volume stays the same - it's already in shares/contracts
+
+        # Run manipulation analysis on scaled data
+        analysis = manipulation_detector.analyze(scaled_df, symbol)
 
         return {
             "symbol": symbol,
+            "current_price": round(analysis.current_price, 2),
             "manipulation_score": analysis.overall_manipulation_score,
             "session_risk": analysis.session_risk,
             "active_alerts": [
@@ -649,7 +659,8 @@ async def get_manipulation_analysis(
                     "type": alert.manipulation_type.value,
                     "severity": alert.severity.value,
                     "description": alert.description,
-                    "key_level": alert.key_level_involved * scale_factor if alert.key_level_involved else None,
+                    "price_at_detection": round(alert.price_at_detection, 2),
+                    "key_level": round(alert.key_level_involved, 2) if alert.key_level_involved else None,
                     "expected_reversal": alert.expected_reversal,
                     "confidence": alert.confidence
                 }
@@ -657,7 +668,7 @@ async def get_manipulation_analysis(
             ],
             "key_levels": [
                 {
-                    "price": level.price * scale_factor,
+                    "price": round(level.price, 2),
                     "type": level.level_type,
                     "strength": level.strength,
                     "touches": level.touches
@@ -666,8 +677,8 @@ async def get_manipulation_analysis(
             ],
             "order_blocks": [
                 {
-                    "high": ob.price_high * scale_factor,
-                    "low": ob.price_low * scale_factor,
+                    "high": round(ob.price_high, 2),
+                    "low": round(ob.price_low, 2),
                     "type": ob.block_type,
                     "strength": ob.strength,
                     "is_tested": ob.is_tested
