@@ -2,5 +2,6 @@
 from .market_data import MarketDataFetcher
 from .news_data import NewsDataFetcher
 from .social_data import SocialDataFetcher
+from .polymarket import PolymarketFetcher
 
-__all__ = ["MarketDataFetcher", "NewsDataFetcher", "SocialDataFetcher"]
+__all__ = ["MarketDataFetcher", "NewsDataFetcher", "SocialDataFetcher", "PolymarketFetcher"]

@@ -8,6 +8,7 @@ import pandas as pd
 from ..data import MarketDataFetcher, NewsDataFetcher, SocialDataFetcher
 from ..data.tradingview import TradingViewIntegration
 from ..data.precious_metals import PreciousMetalsDataFetcher
+from ..data.polymarket import PolymarketFetcher
 from ..analysis import FibonacciAnalyzer, CorrelationAnalyzer, SentimentAnalyzer
 from ..analysis.manipulation import ManipulationDetector
 from ..analysis.signals import SignalGenerator
@@ -32,6 +33,7 @@ signal_generator = SignalGenerator()
 backtest_engine = BacktestEngine()
 position_sizer = PositionSizer()
 pnl_tracker = PnLTracker()
+polymarket_fetcher = PolymarketFetcher()
 
 
 @router.get("/api/health")
@@ -1174,6 +1176,137 @@ async def get_scalp_suggestions(
             "timestamp": datetime.now().isoformat()
         }
 
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== POLYMARKET API ENDPOINTS ====================
+
+@router.get("/api/polymarket/trending")
+async def get_polymarket_trending(limit: int = Query(20, description="Number of events")) -> Dict[str, Any]:
+    """Get trending Polymarket prediction markets."""
+    try:
+        events = await polymarket_fetcher.get_trending_events(limit)
+        return {
+            "events": [
+                {
+                    "id": e.id,
+                    "title": e.title,
+                    "category": e.category,
+                    "volume": round(e.volume, 2),
+                    "liquidity": round(e.liquidity, 2),
+                    "yes_price": round(e.yes_price * 100, 1),
+                    "no_price": round(e.no_price * 100, 1),
+                    "question": e.question,
+                    "tags": e.tags,
+                    "is_active": e.is_active
+                }
+                for e in events
+            ],
+            "count": len(events),
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/polymarket/metals-intel")
+async def get_polymarket_metals_intel() -> Dict[str, Any]:
+    """Get Polymarket events relevant to precious metals trading."""
+    try:
+        events = await polymarket_fetcher.get_metals_relevant_events()
+        geo_events = await polymarket_fetcher.get_geopolitical_events()
+
+        # Build metals-relevant signals
+        signals = []
+        for e in events[:10]:
+            price_signal = polymarket_fetcher.get_price_signal(e)
+            signals.append({
+                "id": e.id,
+                "title": e.title,
+                "category": e.category,
+                "volume": round(e.volume, 2),
+                "yes_price": round(e.yes_price * 100, 1),
+                "no_price": round(e.no_price * 100, 1),
+                "metals_relevance": round(e.metals_relevance * 100, 0),
+                "relevance_reason": e.relevance_reason,
+                "metals_bias": price_signal["metals_bias"],
+                "bias_strength": price_signal["bias_strength"],
+                "question": e.question
+            })
+
+        # Overall metals bias from prediction markets
+        bullish_weight = sum(
+            s["yes_price"] * s["metals_relevance"]
+            for s in signals if s["metals_bias"] == "bullish"
+        )
+        bearish_weight = sum(
+            s["yes_price"] * s["metals_relevance"]
+            for s in signals if s["metals_bias"] == "bearish"
+        )
+        total_weight = bullish_weight + bearish_weight
+        overall_bias = "neutral"
+        if total_weight > 0:
+            bull_pct = bullish_weight / total_weight
+            if bull_pct > 0.6:
+                overall_bias = "bullish"
+            elif bull_pct < 0.4:
+                overall_bias = "bearish"
+
+        return {
+            "metals_signals": signals,
+            "geopolitical": [
+                {
+                    "id": e.id,
+                    "title": e.title,
+                    "category": e.category,
+                    "volume": round(e.volume, 2),
+                    "yes_price": round(e.yes_price * 100, 1),
+                    "no_price": round(e.no_price * 100, 1),
+                    "question": e.question
+                }
+                for e in geo_events[:8]
+            ],
+            "overall_bias": overall_bias,
+            "signal_count": len(signals),
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/polymarket/feed")
+async def get_polymarket_feed() -> Dict[str, Any]:
+    """Get full Polymarket market feed."""
+    try:
+        feed = await polymarket_fetcher.get_market_feed()
+        return {
+            "trending": [
+                {
+                    "id": e.id,
+                    "title": e.title,
+                    "category": e.category,
+                    "volume": round(e.volume, 2),
+                    "yes_price": round(e.yes_price * 100, 1),
+                    "no_price": round(e.no_price * 100, 1),
+                    "question": e.question
+                }
+                for e in feed.trending_events
+            ],
+            "metals_relevant": [
+                {
+                    "id": e.id,
+                    "title": e.title,
+                    "volume": round(e.volume, 2),
+                    "yes_price": round(e.yes_price * 100, 1),
+                    "metals_relevance": round(e.metals_relevance * 100, 0),
+                    "relevance_reason": e.relevance_reason
+                }
+                for e in feed.metals_relevant
+            ],
+            "total_volume_24h": round(feed.total_volume_24h, 2),
+            "timestamp": feed.timestamp.isoformat()
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
