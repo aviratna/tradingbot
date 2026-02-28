@@ -227,7 +227,7 @@ class ManipulationDetector:
             nearby = [level]
             for j, other in enumerate(levels):
                 if j != i and j not in used:
-                    if abs(level.price - other.price) / level.price < tolerance:
+                    if level.price != 0 and abs(level.price - other.price) / level.price < tolerance:
                         nearby.append(other)
                         used.add(j)
 
@@ -238,9 +238,9 @@ class ManipulationDetector:
             # Count touches in historical data
             touches = 0
             for idx, row in df.iterrows():
-                if abs(row['high'] - avg_price) / avg_price < tolerance:
+                if avg_price != 0 and abs(row['high'] - avg_price) / avg_price < tolerance:
                     touches += 1
-                if abs(row['low'] - avg_price) / avg_price < tolerance:
+                if avg_price != 0 and abs(row['low'] - avg_price) / avg_price < tolerance:
                     touches += 1
 
             consolidated.append(KeyLevel(

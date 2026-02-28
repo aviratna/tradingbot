@@ -847,7 +847,7 @@ async def get_market_intelligence() -> Dict[str, Any]:
             "silver": {
                 "price_action": f"Silver at ${silver_price:.2f}, {abs(silver_change):.2f}% {silver_direction} following gold with {silver_momentum} bias",
                 "drivers": "Industrial demand (solar, electronics), gold correlation, investment demand",
-                "outlook": f"Silver typically shows 1.5-2x gold volatility. Current gold/silver ratio indicates {'silver undervalued' if gold_price/silver_price > 80 else 'normal range' if gold_price/silver_price > 70 else 'silver overvalued'}."
+                "outlook": f"Silver typically shows 1.5-2x gold volatility. Current gold/silver ratio indicates {'silver undervalued' if (silver_price > 0 and gold_price/silver_price > 80) else 'normal range' if (silver_price > 0 and gold_price/silver_price > 70) else 'silver overvalued' if silver_price > 0 else 'ratio unavailable (no price data)'}."
             },
             "central_banks": {
                 "fed": "Fed monitoring inflation data. Rate decisions impact gold inversely through USD and real yields.",
@@ -980,7 +980,7 @@ async def get_scalp_suggestions(
             confluence_factors.append({"factor": "Price < EMA9 < EMA21 (Bearish Trend)", "direction": "SELL", "weight": 2})
 
         # Mean reversion (price far from VWAP)
-        vwap_distance_pct = ((current_price - current_vwap) / current_vwap) * 100
+        vwap_distance_pct = ((current_price - current_vwap) / current_vwap) * 100 if current_vwap != 0 else 0
         if vwap_distance_pct < -0.3:
             bullish_signals += 1
             confluence_factors.append({"factor": f"Below VWAP ({vwap_distance_pct:.2f}%) - Reversion", "direction": "BUY", "weight": 1})
