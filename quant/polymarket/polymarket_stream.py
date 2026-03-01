@@ -63,13 +63,13 @@ class PolymarketStream:
             self._prev_probs[market_id] = current_prob
         return deltas
 
-    def _fetch_all(self) -> Optional[PolyUpdate]:
-        """Fetch all Polymarket data synchronously."""
+    async def _fetch_all(self) -> Optional[PolyUpdate]:
+        """Fetch all Polymarket data (async — PolymarketFetcher methods are coroutines)."""
         try:
-            # Use cached fetcher methods
-            metals_intel = self._fetcher.get_metals_relevant_events()
-            geo = self._fetcher.get_geopolitical_events()
-            trending = self._fetcher.get_trending_events()
+            # PolymarketFetcher methods are async coroutines
+            metals_intel = await self._fetcher.get_metals_relevant_events()
+            geo = await self._fetcher.get_geopolitical_events()
+            trending = await self._fetcher.get_trending_events()
 
             metals_list = [
                 {
@@ -134,7 +134,7 @@ class PolymarketStream:
         logger.info("polymarket_stream_started")
         while True:
             try:
-                update = await asyncio.get_event_loop().run_in_executor(None, self._fetch_all)
+                update = await self._fetch_all()
                 if update:
                     event = Event(type=EventType.POLY_UPDATE, data=update, source="polymarket_stream")
                     await self.bus.publish(event)
