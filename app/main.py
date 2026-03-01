@@ -193,8 +193,18 @@ async def quant_status(request: Request):
     if state is None:
         return JSONResponse({"status": "not_running", "error": "Quant engine not initialized"}, status_code=503)
 
+    import math as _math
+
+    def _f(val):
+        """Convert float to JSON-safe value: NaN/Inf → None."""
+        if val is None:
+            return None
+        if isinstance(val, float) and (_math.isnan(val) or _math.isinf(val)):
+            return None
+        return val
+
     def _safe(obj):
-        """Safely extract primitive fields from dataclass."""
+        """Safely extract primitive fields from dataclass, sanitizing NaN/Inf floats."""
         if obj is None:
             return None
         try:
@@ -204,7 +214,9 @@ async def quant_status(request: Request):
                 val = getattr(obj, f.name, None)
                 if hasattr(val, "value"):       # Enum
                     result[f.name] = val.value
-                elif isinstance(val, (int, float, str, bool, type(None))):
+                elif isinstance(val, float):
+                    result[f.name] = _f(val)
+                elif isinstance(val, (int, str, bool, type(None))):
                     result[f.name] = val
                 elif isinstance(val, list):
                     result[f.name] = [str(v)[:120] for v in val[:5]]
@@ -218,24 +230,24 @@ async def quant_status(request: Request):
         "status": "running",
         "timestamp": time.time(),
         "xau": {
-            "price": state.xau_data.price if state.xau_data else None,
-            "change_pct": state.xau_data.change_pct if state.xau_data else None,
+            "price": _f(state.xau_data.price if state.xau_data else None),
+            "change_pct": _f(state.xau_data.change_pct if state.xau_data else None),
         },
         "xaut": {
-            "price": state.xaut_data.price if state.xaut_data else None,
-            "premium_pct": state.xaut_data.premium_discount_pct if state.xaut_data else None,
+            "price": _f(state.xaut_data.price if state.xaut_data else None),
+            "premium_pct": _f(state.xaut_data.premium_discount_pct if state.xaut_data else None),
         },
         "signal": {
-            "composite": state.signal_score.composite if state.signal_score else None,
+            "composite": _f(state.signal_score.composite if state.signal_score else None),
             "direction": state.signal_score.direction.value if state.signal_score else None,
-            "tech_score": state.signal_score.tech_score if state.signal_score else None,
-            "macro_score": state.signal_score.macro_score if state.signal_score else None,
-            "sentiment_score": state.signal_score.sentiment_score if state.signal_score else None,
-            "polymarket_score": state.signal_score.polymarket_score if state.signal_score else None,
+            "tech_score": _f(state.signal_score.tech_score if state.signal_score else None),
+            "macro_score": _f(state.signal_score.macro_score if state.signal_score else None),
+            "sentiment_score": _f(state.signal_score.sentiment_score if state.signal_score else None),
+            "polymarket_score": _f(state.signal_score.polymarket_score if state.signal_score else None),
         },
         "regime": {
             "name": state.regime_snap.regime.value if state.regime_snap else None,
-            "gold_bias": state.regime_snap.gold_bias if state.regime_snap else None,
+            "gold_bias": _f(state.regime_snap.gold_bias if state.regime_snap else None),
             "description": state.regime_snap.description if state.regime_snap else None,
             "triggers": state.regime_snap.triggers if state.regime_snap else [],
         },
@@ -245,12 +257,12 @@ async def quant_status(request: Request):
         "risk": _safe(state.risk_snap),
         "trade": {
             "action": state.trade_suggestion.action if state.trade_suggestion else None,
-            "entry_low": state.trade_suggestion.entry_low if state.trade_suggestion else None,
-            "entry_high": state.trade_suggestion.entry_high if state.trade_suggestion else None,
-            "stop_loss": state.trade_suggestion.stop_loss if state.trade_suggestion else None,
-            "take_profit_1": state.trade_suggestion.take_profit_1 if state.trade_suggestion else None,
-            "take_profit_2": state.trade_suggestion.take_profit_2 if state.trade_suggestion else None,
-            "r_r_ratio": state.trade_suggestion.r_r_ratio if state.trade_suggestion else None,
+            "entry_low": _f(state.trade_suggestion.entry_low if state.trade_suggestion else None),
+            "entry_high": _f(state.trade_suggestion.entry_high if state.trade_suggestion else None),
+            "stop_loss": _f(state.trade_suggestion.stop_loss if state.trade_suggestion else None),
+            "take_profit_1": _f(state.trade_suggestion.take_profit_1 if state.trade_suggestion else None),
+            "take_profit_2": _f(state.trade_suggestion.take_profit_2 if state.trade_suggestion else None),
+            "r_r_ratio": _f(state.trade_suggestion.r_r_ratio if state.trade_suggestion else None),
             "rationale": state.trade_suggestion.rationale if state.trade_suggestion else [],
         },
         "forecast": {
@@ -259,9 +271,9 @@ async def quant_status(request: Request):
             "scenarios": [
                 {
                     "horizon_min": s.horizon_minutes,
-                    "base": s.base_forecast,
-                    "low": s.lower_band,
-                    "high": s.upper_band,
+                    "base": _f(s.base_forecast),
+                    "low": _f(s.lower_band),
+                    "high": _f(s.upper_band),
                 }
                 for s in state.forecast_snap.scenarios
             ] if state.forecast_snap else [],
