@@ -68,6 +68,15 @@
         .pm-bar-yes { height: 100%; background: linear-gradient(90deg, #22c55e, #16a34a); border-radius: 2px; }
         .volume-chip { font-size: 10px; padding: 1px 6px; background: rgba(59,130,246,0.15); color: #93c5fd; border-radius: 99px; }
 
+        /* Quant Engine panel */
+        .quant-buy  { border-left: 4px solid #22c55e; background: rgba(34,197,94,0.06); }
+        .quant-sell { border-left: 4px solid #ef4444; background: rgba(239,68,68,0.06); }
+        .quant-wait { border-left: 4px solid #475569; background: rgba(71,85,105,0.08); }
+        .quant-event { font-size: 11px; padding: 4px 8px; border-radius: 4px; background: rgba(30,41,59,0.7); border: 1px solid rgba(71,85,105,0.3); }
+        .quant-dot-run { background: #22c55e; animation: pulse 1.5s infinite; }
+        .quant-dot-err { background: #ef4444; }
+        .quant-dot-off { background: #475569; }
+
         /* Glint-style events feed */
         .event-feed-item { padding: 8px 10px; border-radius: 6px; margin-bottom: 5px; background: rgba(30,41,59,0.6); border: 1px solid rgba(71,85,105,0.3); transition: background 0.2s; }
         .event-feed-item:hover { background: rgba(30,41,59,1); }
@@ -320,6 +329,169 @@
                     <div class="p-2 bg-slate-700/30 rounded">
                         <div class="text-gray-400">Vol (USD)</div>
                         <div id="polyTotalVol" class="font-bold text-blue-300">--</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== QUANT ENGINE PANEL ===== -->
+            <div class="card p-4" id="quantPanel">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-lg font-semibold flex items-center gap-2">
+                        <span class="text-cyan-400">⬡</span>
+                        Quant Signal Engine
+                        <span class="text-xs bg-cyan-800 px-2 py-0.5 rounded">REAL-TIME</span>
+                    </h2>
+                    <div class="flex items-center gap-3">
+                        <span id="quantLastRefresh" class="text-xs text-gray-500">Never refreshed</span>
+                        <div id="quantStatusDot" class="w-2 h-2 rounded-full bg-gray-600" title="Quant engine status"></div>
+                    </div>
+                </div>
+
+                <!-- Top row: XAU price + composite signal score -->
+                <div class="grid grid-cols-3 gap-3 mb-3">
+                    <!-- XAU Live Price from quant -->
+                    <div class="bg-slate-800/60 rounded-lg p-3 border border-slate-700">
+                        <div class="text-xs text-gray-400 mb-1">XAU/USD (Quant)</div>
+                        <div id="quantXauPrice" class="text-xl font-bold text-yellow-400">----.--</div>
+                        <div id="quantXauChange" class="text-xs mt-0.5 text-gray-500">--.--%</div>
+                    </div>
+                    <!-- Composite Score gauge -->
+                    <div class="bg-slate-800/60 rounded-lg p-3 border border-slate-700 col-span-2">
+                        <div class="flex items-center justify-between mb-1">
+                            <div class="text-xs text-gray-400">Composite Signal Score</div>
+                            <div id="quantSignalDir" class="text-xs font-bold px-2 py-0.5 rounded bg-slate-700 text-gray-300">--</div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <div id="quantCompositeScore" class="text-3xl font-bold text-white">--</div>
+                            <div class="flex-1">
+                                <div class="flex justify-between text-xs text-gray-500 mb-1">
+                                    <span>SELL</span><span>NEUTRAL</span><span>BUY</span>
+                                </div>
+                                <div class="relative h-3 bg-slate-700 rounded-full overflow-hidden">
+                                    <!-- Gradient track -->
+                                    <div class="absolute inset-0 rounded-full" style="background: linear-gradient(90deg, #ef4444 0%, #f97316 30%, #eab308 50%, #22c55e 70%, #10b981 100%);opacity:0.25;"></div>
+                                    <!-- Score pointer -->
+                                    <div id="quantScoreBar" class="absolute top-0 h-full w-1 bg-white rounded shadow-lg transition-all duration-500" style="left:50%"></div>
+                                </div>
+                                <div class="flex justify-between text-xs text-gray-600 mt-0.5">
+                                    <span>0</span><span>50</span><span>100</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sub-scores row -->
+                <div class="grid grid-cols-4 gap-2 mb-3">
+                    <div class="bg-slate-800/40 rounded p-2 text-center">
+                        <div class="text-xs text-gray-500 mb-0.5">Technical</div>
+                        <div id="quantTechScore" class="text-base font-bold text-blue-300">--</div>
+                        <div class="indicator-bar mt-1"><div id="quantTechBar" class="indicator-fill bg-blue-400" style="width:50%"></div></div>
+                    </div>
+                    <div class="bg-slate-800/40 rounded p-2 text-center">
+                        <div class="text-xs text-gray-500 mb-0.5">Macro</div>
+                        <div id="quantMacroScore" class="text-base font-bold text-purple-300">--</div>
+                        <div class="indicator-bar mt-1"><div id="quantMacroBar" class="indicator-fill bg-purple-400" style="width:50%"></div></div>
+                    </div>
+                    <div class="bg-slate-800/40 rounded p-2 text-center">
+                        <div class="text-xs text-gray-500 mb-0.5">Sentiment</div>
+                        <div id="quantSentScore" class="text-base font-bold text-orange-300">--</div>
+                        <div class="indicator-bar mt-1"><div id="quantSentBar" class="indicator-fill bg-orange-400" style="width:50%"></div></div>
+                    </div>
+                    <div class="bg-slate-800/40 rounded p-2 text-center">
+                        <div class="text-xs text-gray-500 mb-0.5">Polymarket</div>
+                        <div id="quantPolyScore" class="text-base font-bold text-violet-300">--</div>
+                        <div class="indicator-bar mt-1"><div id="quantPolyBar" class="indicator-fill bg-violet-400" style="width:50%"></div></div>
+                    </div>
+                </div>
+
+                <!-- Regime + Technicals row -->
+                <div class="grid grid-cols-2 gap-3 mb-3">
+                    <!-- Market Regime -->
+                    <div class="bg-slate-800/40 rounded-lg p-3">
+                        <div class="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-2">Market Regime</div>
+                        <div id="quantRegimeName" class="text-sm font-bold text-cyan-300 mb-1">--</div>
+                        <div id="quantRegimeDesc" class="text-xs text-gray-400 leading-relaxed">--</div>
+                        <div id="quantRegimeTriggers" class="mt-2 space-y-0.5"></div>
+                    </div>
+                    <!-- Key Technicals -->
+                    <div class="bg-slate-800/40 rounded-lg p-3">
+                        <div class="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-2">Quant Technicals</div>
+                        <div class="grid grid-cols-2 gap-1 text-xs">
+                            <div class="flex justify-between"><span class="text-gray-500">RSI-14</span><span id="quantRsi" class="font-semibold">--</span></div>
+                            <div class="flex justify-between"><span class="text-gray-500">ATR-14</span><span id="quantAtr" class="font-semibold">--</span></div>
+                            <div class="flex justify-between"><span class="text-gray-500">EMA-20</span><span id="quantEma20" class="font-semibold">--</span></div>
+                            <div class="flex justify-between"><span class="text-gray-500">EMA-50</span><span id="quantEma50" class="font-semibold">--</span></div>
+                            <div class="flex justify-between"><span class="text-gray-500">MACD</span><span id="quantMacd" class="font-semibold">--</span></div>
+                            <div class="flex justify-between"><span class="text-gray-500">Trend</span><span id="quantTrend" class="font-semibold capitalize">--</span></div>
+                            <div class="flex justify-between"><span class="text-gray-500">VWAP</span><span id="quantVwap" class="font-semibold">--</span></div>
+                            <div class="flex justify-between"><span class="text-gray-500">RSI Sig</span><span id="quantRsiSig" class="font-semibold capitalize">--</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Trade Suggestion -->
+                <div id="quantTradeBox" class="rounded-lg p-3 mb-3 border border-slate-600 bg-slate-800/40">
+                    <div class="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-2">Quant Trade Suggestion</div>
+                    <div class="grid grid-cols-5 gap-2 text-xs mb-2">
+                        <div class="text-center">
+                            <div class="text-gray-500 mb-0.5">Action</div>
+                            <div id="quantTradeAction" class="font-bold text-base text-gray-300">WAIT</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-gray-500 mb-0.5">Entry Zone</div>
+                            <div id="quantEntryLow" class="font-semibold text-green-300">--</div>
+                            <div class="text-gray-600">–</div>
+                            <div id="quantEntryHigh" class="font-semibold text-green-300">--</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-gray-500 mb-0.5">Stop Loss</div>
+                            <div id="quantSL" class="font-semibold text-red-400">--</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-gray-500 mb-0.5">TP1 / TP2</div>
+                            <div id="quantTP1" class="font-semibold text-emerald-300">--</div>
+                            <div id="quantTP2" class="font-semibold text-emerald-400">--</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-gray-500 mb-0.5">R:R</div>
+                            <div id="quantRR" class="font-bold text-yellow-300 text-base">--</div>
+                        </div>
+                    </div>
+                    <!-- Rationale chips -->
+                    <div id="quantRationale" class="flex flex-wrap gap-1"></div>
+                </div>
+
+                <!-- Forecast row -->
+                <div class="bg-slate-800/40 rounded-lg p-3 mb-3">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="text-xs text-gray-400 font-semibold uppercase tracking-wide">Price Forecast</div>
+                        <div id="quantForecastDir" class="text-xs font-bold px-2 py-0.5 rounded bg-slate-700 text-gray-300">--</div>
+                    </div>
+                    <div id="quantForecastScenarios" class="grid grid-cols-3 gap-2 text-xs text-center">
+                        <div class="bg-slate-700/40 rounded p-2">
+                            <div class="text-gray-500 mb-1">15 min</div>
+                            <div id="quantF15base" class="font-bold text-white">--</div>
+                            <div id="quantF15range" class="text-gray-500 text-xs">--</div>
+                        </div>
+                        <div class="bg-slate-700/40 rounded p-2">
+                            <div class="text-gray-500 mb-1">30 min</div>
+                            <div id="quantF30base" class="font-bold text-white">--</div>
+                            <div id="quantF30range" class="text-gray-500 text-xs">--</div>
+                        </div>
+                        <div class="bg-slate-700/40 rounded p-2">
+                            <div class="text-gray-500 mb-1">60 min</div>
+                            <div id="quantF60base" class="font-bold text-white">--</div>
+                            <div id="quantF60range" class="text-gray-500 text-xs">--</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Quant Events -->
+                <div>
+                    <div class="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-2">Recent Engine Events</div>
+                    <div id="quantEventsFeed" class="space-y-1 max-h-36 overflow-y-auto scroll-thin">
+                        <div class="text-xs text-gray-600 p-2 text-center">Loading events...</div>
                     </div>
                 </div>
             </div>
@@ -1458,6 +1630,173 @@
             document.getElementById('activeSignalCount').textContent = count;
         }
 
+        // ── Quant Engine ─────────────────────────────────────────────────────────
+        function fmtPrice(v) { return (v == null) ? '--' : Number(v).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+        function fmtScore(v) { return (v == null) ? '--' : Number(v).toFixed(1); }
+
+        function setScoreBar(elId, score) {
+            const el = document.getElementById(elId);
+            if (!el) return;
+            const pct = Math.max(0, Math.min(100, score || 0));
+            el.style.width = pct + '%';
+            el.className = 'indicator-fill ' + (pct >= 60 ? 'bg-green-400' : pct <= 40 ? 'bg-red-400' : 'bg-yellow-400');
+        }
+
+        function colorForScore(s) {
+            if (s == null) return 'text-gray-300';
+            return s >= 60 ? 'text-green-300' : s <= 40 ? 'text-red-300' : 'text-yellow-300';
+        }
+
+        async function fetchQuantStatus() {
+            try {
+                const resp = await fetch('/quant/status');
+                const dot = document.getElementById('quantStatusDot');
+                if (!resp.ok) {
+                    dot.className = 'w-2 h-2 rounded-full quant-dot-err';
+                    document.getElementById('quantLastRefresh').textContent = 'Engine offline';
+                    return;
+                }
+                const d = await resp.json();
+
+                // Status dot
+                dot.className = 'w-2 h-2 rounded-full ' + (d.status === 'running' ? 'quant-dot-run' : 'quant-dot-err');
+
+                // Last refresh timestamp
+                const now = new Date();
+                document.getElementById('quantLastRefresh').textContent =
+                    'Refreshed ' + now.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+
+                // XAU price
+                const xau = d.xau || {};
+                document.getElementById('quantXauPrice').textContent = fmtPrice(xau.price);
+                const chg = xau.change_pct;
+                const chgEl = document.getElementById('quantXauChange');
+                chgEl.textContent = (chg == null) ? '--' : (chg >= 0 ? '+' : '') + chg.toFixed(3) + '%';
+                chgEl.className = 'text-xs mt-0.5 ' + (chg == null ? 'text-gray-500' : chg >= 0 ? 'text-green-400' : 'text-red-400');
+
+                // Composite score
+                const sig = d.signal || {};
+                const composite = sig.composite;
+                document.getElementById('quantCompositeScore').textContent = fmtScore(composite);
+                document.getElementById('quantCompositeScore').className = 'text-3xl font-bold ' + colorForScore(composite);
+
+                // Direction badge
+                const dir = sig.direction || '--';
+                const dirEl = document.getElementById('quantSignalDir');
+                dirEl.textContent = dir;
+                dirEl.className = 'text-xs font-bold px-2 py-0.5 rounded ' +
+                    (dir === 'BUY' ? 'bg-green-700 text-green-100' :
+                     dir === 'SELL' ? 'bg-red-700 text-red-100' : 'bg-slate-700 text-gray-300');
+
+                // Score bar pointer (0-100 → 0-100% left)
+                const ptr = document.getElementById('quantScoreBar');
+                if (ptr) ptr.style.left = Math.max(0, Math.min(100, composite || 50)) + '%';
+
+                // Sub-scores
+                document.getElementById('quantTechScore').textContent   = fmtScore(sig.tech_score);
+                document.getElementById('quantMacroScore').textContent  = fmtScore(sig.macro_score);
+                document.getElementById('quantSentScore').textContent   = fmtScore(sig.sentiment_score);
+                document.getElementById('quantPolyScore').textContent   = fmtScore(sig.polymarket_score);
+                setScoreBar('quantTechBar',  sig.tech_score);
+                setScoreBar('quantMacroBar', sig.macro_score);
+                setScoreBar('quantSentBar',  sig.sentiment_score);
+                setScoreBar('quantPolyBar',  sig.polymarket_score);
+
+                // Regime
+                const reg = d.regime || {};
+                document.getElementById('quantRegimeName').textContent = reg.name || '--';
+                document.getElementById('quantRegimeDesc').textContent = reg.description || '--';
+                const trigEl = document.getElementById('quantRegimeTriggers');
+                const triggers = reg.triggers || [];
+                trigEl.innerHTML = triggers.slice(0,3).map(t =>
+                    `<div class="text-xs text-gray-500 flex items-start gap-1"><span class="text-cyan-600 mt-0.5">›</span><span>${t}</span></div>`
+                ).join('');
+
+                // Technicals
+                const tech = d.technicals || {};
+                document.getElementById('quantRsi').textContent    = tech.rsi14   != null ? Number(tech.rsi14).toFixed(1) : '--';
+                document.getElementById('quantAtr').textContent    = tech.atr14   != null ? Number(tech.atr14).toFixed(2) : '--';
+                document.getElementById('quantEma20').textContent  = tech.ema20   != null ? fmtPrice(tech.ema20) : '--';
+                document.getElementById('quantEma50').textContent  = tech.ema50   != null ? fmtPrice(tech.ema50) : '--';
+                document.getElementById('quantMacd').textContent   = tech.macd    != null ? Number(tech.macd).toFixed(3) : '--';
+                document.getElementById('quantVwap').textContent   = tech.vwap    != null ? fmtPrice(tech.vwap) : '--';
+                document.getElementById('quantTrend').textContent  = tech.trend   || '--';
+                document.getElementById('quantRsiSig').textContent = tech.rsi_signal || '--';
+                // Color RSI
+                const rsiV = tech.rsi14;
+                document.getElementById('quantRsi').className = 'font-semibold ' +
+                    (rsiV == null ? '' : rsiV > 70 ? 'text-red-400' : rsiV < 30 ? 'text-green-400' : 'text-white');
+
+                // Trade suggestion
+                const trade = d.trade || {};
+                const action = trade.action || 'WAIT';
+                const tradeBox = document.getElementById('quantTradeBox');
+                tradeBox.className = 'rounded-lg p-3 mb-3 border ' +
+                    (action.includes('BUY') ? 'quant-buy border-green-700' :
+                     action.includes('SELL') ? 'quant-sell border-red-700' : 'quant-wait border-slate-600');
+                const actionEl = document.getElementById('quantTradeAction');
+                actionEl.textContent = action;
+                actionEl.className = 'font-bold text-base ' +
+                    (action.includes('BUY') ? 'text-green-300' : action.includes('SELL') ? 'text-red-300' : 'text-gray-400');
+                document.getElementById('quantEntryLow').textContent  = fmtPrice(trade.entry_low);
+                document.getElementById('quantEntryHigh').textContent = fmtPrice(trade.entry_high);
+                document.getElementById('quantSL').textContent        = fmtPrice(trade.stop_loss);
+                document.getElementById('quantTP1').textContent       = fmtPrice(trade.take_profit_1);
+                document.getElementById('quantTP2').textContent       = fmtPrice(trade.take_profit_2);
+                const rr = trade.r_r_ratio;
+                document.getElementById('quantRR').textContent = rr != null ? Number(rr).toFixed(2) : '--';
+
+                // Rationale chips
+                const rationale = Array.isArray(trade.rationale) ? trade.rationale : [];
+                document.getElementById('quantRationale').innerHTML = rationale.slice(0,5).map(r =>
+                    `<span class="text-xs px-2 py-0.5 rounded-full bg-slate-700 text-gray-300">${r}</span>`
+                ).join('');
+
+                // Forecast
+                const fc = d.forecast || {};
+                const fcDir = fc.direction || '--';
+                const fcDirEl = document.getElementById('quantForecastDir');
+                fcDirEl.textContent = fcDir.toUpperCase();
+                fcDirEl.className = 'text-xs font-bold px-2 py-0.5 rounded ' +
+                    (fcDir === 'up' ? 'bg-green-800 text-green-200' :
+                     fcDir === 'down' ? 'bg-red-800 text-red-200' : 'bg-slate-700 text-gray-300');
+                const scenarios = fc.scenarios || [];
+                const horizons = [15, 30, 60];
+                const ids = [['quantF15base','quantF15range'], ['quantF30base','quantF30range'], ['quantF60base','quantF60range']];
+                scenarios.forEach((s, i) => {
+                    if (!ids[i]) return;
+                    document.getElementById(ids[i][0]).textContent = fmtPrice(s.base);
+                    document.getElementById(ids[i][1]).textContent =
+                        (s.low != null && s.high != null) ? fmtPrice(s.low) + ' – ' + fmtPrice(s.high) : '--';
+                });
+
+                // Events feed
+                const events = d.recent_events || [];
+                const eventEl = document.getElementById('quantEventsFeed');
+                if (events.length === 0) {
+                    eventEl.innerHTML = '<div class="text-xs text-gray-600 p-2 text-center">No events yet</div>';
+                } else {
+                    const colorMap = { green:'text-green-400', red:'text-red-400', cyan:'text-cyan-400',
+                        yellow:'text-yellow-400', magenta:'text-pink-400', orange:'text-orange-400',
+                        bright_red:'text-red-300', bright_green:'text-green-300', dim:'text-gray-500', white:'text-gray-300' };
+                    eventEl.innerHTML = events.slice().reverse().slice(0,12).map(ev => {
+                        const ts = new Date(ev.time * 1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+                        const cls = colorMap[ev.color] || 'text-gray-300';
+                        return `<div class="quant-event flex items-start gap-2">
+                            <span class="text-gray-600 flex-shrink-0">${ts}</span>
+                            <span class="${cls}">${ev.msg}</span>
+                        </div>`;
+                    }).join('');
+                }
+
+            } catch (e) {
+                const dot = document.getElementById('quantStatusDot');
+                if (dot) dot.className = 'w-2 h-2 rounded-full quant-dot-err';
+                document.getElementById('quantLastRefresh').textContent = 'Error: ' + e.message;
+            }
+        }
+        // ─────────────────────────────────────────────────────────────────────
+
         async function refreshAll() {
             await forceRefresh();
             const [goldData, silverData] = await Promise.all([
@@ -1483,7 +1822,8 @@
                 fetchPnL(),
                 fetchMarketIntelligence(),
                 fetchScalpSuggestions(),
-                fetchPolymarketIntel()
+                fetchPolymarketIntel(),
+                fetchQuantStatus()
             ]);
             updateTimestamp();
         }
@@ -1494,6 +1834,8 @@
             setInterval(refreshAll, 60000);
             // Polymarket refreshes every 2 minutes independently
             setInterval(fetchPolymarketIntel, 120000);
+            // Quant engine refreshes every 30 seconds (between main cycles)
+            setInterval(fetchQuantStatus, 30000);
         });
     </script>
 </body>
