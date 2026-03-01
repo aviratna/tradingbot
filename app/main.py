@@ -27,19 +27,29 @@ _quant_log = _logging.getLogger("app.quant_launcher")
 async def lifespan(app_instance: FastAPI):
     """Startup / shutdown lifecycle — starts quant engine as background task."""
     global _quant_state, _quant_task
+    print("QUANT: lifespan startup beginning...", flush=True)
     try:
+        print("QUANT: importing core event_bus...", flush=True)
         from quant.core.event_bus import get_event_bus, EventType
+        print("QUANT: importing core logger...", flush=True)
         from quant.core.logger import setup_logging, get_logger
+        print("QUANT: importing market streams...", flush=True)
         from quant.market.xau_stream import XAUStream
         from quant.market.xaut_stream import XAUTStream
         from quant.market.macro_stream import MacroStream
+        print("QUANT: importing news streams...", flush=True)
         from quant.news.finance_stream import FinanceNewsStream
         from quant.news.geopolitics_stream import GeopoliticsStream
         from quant.news.reddit_stream import RedditStream
+        print("QUANT: importing polymarket stream...", flush=True)
         from quant.polymarket.polymarket_stream import PolymarketStream
+        print("QUANT: importing analysis orchestrator...", flush=True)
         from quant.analysis.orchestrator import AnalysisOrchestrator
+        print("QUANT: importing json exporter...", flush=True)
         from quant.dashboard.json_export import JSONExporter
+        print("QUANT: importing state...", flush=True)
         from quant.state import QuantState
+        print("QUANT: all imports successful!", flush=True)
 
         setup_logging("INFO")
         log = get_logger("app.quant_launcher")
@@ -48,6 +58,7 @@ async def lifespan(app_instance: FastAPI):
         state = QuantState()
         _quant_state = state
         app_instance.state.quant = state  # expose on FastAPI app.state
+        print("QUANT: QuantState created, setting up tasks...", flush=True)
 
         xau_price_ref = [0.0]
 
@@ -59,6 +70,7 @@ async def lifespan(app_instance: FastAPI):
 
         async def _run_all():
             try:
+                print("QUANT: _run_all started, creating stream instances...", flush=True)
                 xau = XAUStream()
                 xaut = XAUTStream(xau_price_ref)
                 macro = MacroStream()
@@ -68,8 +80,9 @@ async def lifespan(app_instance: FastAPI):
                 poly = PolymarketStream()
                 orch = AnalysisOrchestrator(state, bus)
                 exporter = JSONExporter(state)
+                print("QUANT: all stream instances created, launching gather...", flush=True)
                 log.info("quant_engine_all_streams_started")
-                await asyncio.gather(
+                results = await asyncio.gather(
                     xau.run(),
                     xaut.run(),
                     macro.run(),
@@ -82,13 +95,24 @@ async def lifespan(app_instance: FastAPI):
                     exporter.run(),
                     return_exceptions=True,
                 )
+                # Log any exceptions returned by gather
+                for i, r in enumerate(results):
+                    if isinstance(r, Exception):
+                        print(f"QUANT: stream[{i}] failed: {type(r).__name__}: {r}", flush=True)
             except Exception as inner_e:
+                import traceback as _tb
+                print(f"QUANT: _run_all exception: {type(inner_e).__name__}: {inner_e}", flush=True)
+                _tb.print_exc()
                 log.error("quant_gather_failed", error=str(inner_e), exc_info=True)
 
         _quant_task = asyncio.create_task(_run_all())
         log.info("quant_engine_task_created")
+        print("QUANT: background task created successfully!", flush=True)
 
     except Exception as e:
+        import traceback as _tb
+        print(f"QUANT STARTUP FAILED: {type(e).__name__}: {e}", flush=True)
+        _tb.print_exc()
         _quant_log.warning(f"Quant engine could not start (non-fatal): {e}", exc_info=True)
 
     yield  # FastAPI serves requests here
