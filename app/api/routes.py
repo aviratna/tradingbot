@@ -1311,6 +1311,139 @@ async def get_polymarket_feed() -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ── OSINT Intelligence Layer Endpoints ───────────────────────────────────────
+
+def _get_osint_state():
+    """Retrieve osint_data from quant state. Returns None if not available."""
+    try:
+        from app.main import _quant_state
+        if _quant_state is None:
+            return None
+        return getattr(_quant_state, "osint_data", None)
+    except Exception:
+        return None
+
+
+@router.get("/api/osint/status")
+async def osint_status():
+    """GRI score + fast OSINT score + AI macro summary + blended composite."""
+    try:
+        osint = _get_osint_state()
+        if osint is None:
+            return {"available": False, "message": "OSINT layer initializing..."}
+        return {
+            "available": True,
+            "timestamp": osint.timestamp,
+            "gri": {
+                "score": osint.gri_score,
+                "label": osint.gri_label,
+                "geo": osint.gri_geo_component,
+                "monetary": osint.gri_monetary_component,
+                "safe_haven": osint.gri_safe_haven_component,
+                "retail": osint.gri_retail_component,
+            },
+            "fast_score": osint.osint_fast_score,
+            "fast_delta": osint.osint_fast_delta,
+            "fast_label": osint.osint_fast_label,
+            "ai_summary": osint.ai_summary,
+            "ai_confidence": osint.ai_confidence,
+            "ai_summary_cached_at": osint.ai_summary_cached_at,
+            "blended_composite": osint.blended_composite,
+            "blended_direction": osint.blended_direction,
+            "fear_spike": osint.fear_spike,
+            "hawkish_dominant": osint.hawkish_dominant,
+            "long_multiplier_boost": osint.long_multiplier_boost,
+            "trade": {
+                "rule": osint.trade_bias_rule,
+                "size_multiplier": osint.trade_size_multiplier,
+                "direction_bias": osint.trade_direction_bias,
+                "rationale": osint.trade_rationale,
+            },
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/osint/narratives")
+async def osint_narratives():
+    """Ranked macro narratives with confidence scores and gold impact."""
+    try:
+        osint = _get_osint_state()
+        if osint is None:
+            return {"available": False, "narratives": []}
+        return {
+            "available": True,
+            "timestamp": osint.timestamp,
+            "narratives": osint.narratives,
+            "dominant": osint.narratives[0] if osint.narratives else None,
+            "hawkish_dominant": osint.hawkish_dominant,
+            "fear_spike": osint.fear_spike,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/osint/social")
+async def osint_social():
+    """Reddit posts and Twitter/X tweets with availability flags."""
+    try:
+        osint = _get_osint_state()
+        if osint is None:
+            return {
+                "available": False,
+                "reddit": {"available": False, "posts": []},
+                "twitter": {"available": False, "posts": []},
+            }
+        return {
+            "available": True,
+            "timestamp": osint.timestamp,
+            "reddit": {
+                "available": osint.reddit_available,
+                "posts": osint.reddit_posts,
+                "count": len(osint.reddit_posts),
+            },
+            "twitter": {
+                "available": osint.twitter_available,
+                "posts": osint.twitter_posts,
+                "count": len(osint.twitter_posts),
+            },
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/osint/gri")
+async def osint_gri():
+    """Gold Risk Index component breakdown + risk flags."""
+    try:
+        osint = _get_osint_state()
+        if osint is None:
+            return {"available": False, "gri_score": None}
+        return {
+            "available": True,
+            "timestamp": osint.timestamp,
+            "gri_score": osint.gri_score,
+            "gri_label": osint.gri_label,
+            "components": {
+                "geo": {"score": osint.gri_geo_component, "weight": 0.35},
+                "monetary": {"score": osint.gri_monetary_component, "weight": 0.25},
+                "safe_haven": {"score": osint.gri_safe_haven_component, "weight": 0.25},
+                "retail": {"score": osint.gri_retail_component, "weight": 0.15},
+            },
+            "risk_flags": {
+                "fear_spike": osint.fear_spike,
+                "hawkish_dominant": osint.hawkish_dominant,
+                "long_multiplier_boost": osint.long_multiplier_boost,
+            },
+            "blended_composite": osint.blended_composite,
+            "blended_direction": osint.blended_direction,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+
 # Debug: Print routes when module is loaded
 print(f"[DEBUG] routes.py loaded, total routes: {len([r for r in router.routes if hasattr(r, 'path')])}")
 _metal_routes = [r.path for r in router.routes if hasattr(r, 'path') and 'metal' in r.path]

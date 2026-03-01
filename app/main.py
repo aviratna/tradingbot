@@ -50,6 +50,9 @@ async def lifespan(app_instance: FastAPI):
         print("QUANT: importing state...", flush=True)
         from quant.state import QuantState
         print("QUANT: all imports successful!", flush=True)
+        print("QUANT: importing OSINT aggregator...", flush=True)
+        from osint.osint_aggregator import OsintAggregator
+        print("QUANT: OSINT aggregator imported", flush=True)
 
         setup_logging("INFO")
         log = get_logger("app.quant_launcher")
@@ -59,6 +62,9 @@ async def lifespan(app_instance: FastAPI):
         _quant_state = state
         app_instance.state.quant = state  # expose on FastAPI app.state
         print("QUANT: QuantState created, setting up tasks...", flush=True)
+
+        osint_agg = OsintAggregator(state, bus)
+        print("QUANT: OSINT aggregator ready", flush=True)
 
         xau_price_ref = [0.0]
 
@@ -93,6 +99,7 @@ async def lifespan(app_instance: FastAPI):
                     _xau_tracker(),
                     orch.run_event_consumer(),
                     exporter.run(),
+                    osint_agg.run(),
                     return_exceptions=True,
                 )
                 # Log any exceptions returned by gather
@@ -282,6 +289,42 @@ async def quant_status(request: Request):
             {"time": e[0], "msg": e[1], "color": e[2]}
             for e in (state.recent_events[-10:] if state.recent_events else [])
         ],
+        "osint": _build_osint_dict(state, _f),
+    }
+
+
+def _build_osint_dict(state, _f):
+    """Build the 'osint' key for /quant/status response."""
+    osint = getattr(state, "osint_data", None)
+    return {
+        "available": osint is not None,
+        "gri": {
+            "score": _f(osint.gri_score if osint else None),
+            "label": osint.gri_label if osint else None,
+            "geo": _f(osint.gri_geo_component if osint else None),
+            "monetary": _f(osint.gri_monetary_component if osint else None),
+            "safe_haven": _f(osint.gri_safe_haven_component if osint else None),
+            "retail": _f(osint.gri_retail_component if osint else None),
+        },
+        "fast_score": _f(osint.osint_fast_score if osint else None),
+        "fast_delta": _f(osint.osint_fast_delta if osint else None),
+        "fast_label": osint.osint_fast_label if osint else None,
+        "ai_summary": osint.ai_summary if osint else None,
+        "ai_confidence": _f(osint.ai_confidence if osint else None),
+        "blended_composite": _f(osint.blended_composite if osint else None),
+        "blended_direction": osint.blended_direction if osint else None,
+        "narratives": (osint.narratives[:6] if osint else []),
+        "reddit_posts": (osint.reddit_posts[:3] if osint else []),
+        "twitter_posts": (osint.twitter_posts[:3] if osint else []),
+        "reddit_available": osint.reddit_available if osint else False,
+        "twitter_available": osint.twitter_available if osint else False,
+        "fear_spike": osint.fear_spike if osint else False,
+        "hawkish_dominant": osint.hawkish_dominant if osint else False,
+        "long_multiplier_boost": osint.long_multiplier_boost if osint else False,
+        "trade_bias_rule": osint.trade_bias_rule if osint else None,
+        "trade_size_multiplier": _f(osint.trade_size_multiplier if osint else None),
+        "trade_direction_bias": osint.trade_direction_bias if osint else None,
+        "trade_rationale": osint.trade_rationale if osint else None,
     }
 
 

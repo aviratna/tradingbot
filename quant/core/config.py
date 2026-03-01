@@ -70,6 +70,16 @@ class QuantConfig:
     polymarket_risk_off_index: float = 0.6
     spy_liquidity_5d_change: float = -5.0
 
+    # OSINT intelligence layer
+    osint_poll_interval: int = 180           # 3 min between OSINT collection cycles
+    ai_summary_cache_ttl: int = 180          # 3 min Claude API cache
+    quant_composite_weight: float = 0.60     # existing quant composite weight in blended formula
+    gri_weight: float = 0.20                 # Gold Risk Index weight
+    osint_fast_weight: float = 0.10          # OSINT fast signal weight
+    ai_confidence_weight: float = 0.10       # AI confidence adjustment weight
+    gri_fear_spike_threshold: float = 85.0   # GRI > 85 triggers long boost
+    hawkish_index_usd_threshold: float = 75.0  # hawkish index > 75 reduces long gold bias
+
 
 # Global singleton
 _config: QuantConfig | None = None

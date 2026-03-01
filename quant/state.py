@@ -28,6 +28,9 @@ class QuantState:
     # Polymarket
     poly_data: Optional[object] = None
 
+    # OSINT intelligence layer (populated by OsintAggregator every 3 min)
+    osint_data: Optional[object] = None
+
     # Event log: [(timestamp, message, color)]
     recent_events: List[Tuple[float, str, str]] = field(default_factory=list)
     MAX_EVENTS: int = 50

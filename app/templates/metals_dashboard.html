@@ -84,6 +84,26 @@
         .bias-bullish { background: rgba(34,197,94,0.2); color: #4ade80; }
         .bias-bearish { background: rgba(239,68,68,0.2); color: #f87171; }
         .bias-neutral  { background: rgba(148,163,184,0.15); color: #94a3b8; }
+
+        /* ── OSINT Intelligence Layer styles ── */
+        .gri-gauge-track { width:100%; height:8px; border-radius:4px; background:#334155; overflow:hidden; }
+        .gri-gauge-fill { height:100%; border-radius:4px; transition:width 0.6s ease; }
+        .gri-low      { background: linear-gradient(90deg,#22c55e,#16a34a); }
+        .gri-moderate { background: linear-gradient(90deg,#fbbf24,#d97706); }
+        .gri-elevated { background: linear-gradient(90deg,#f97316,#ea580c); }
+        .gri-extreme  { background: linear-gradient(90deg,#ef4444,#dc2626); }
+        .narrative-pill { font-size:10px; padding:2px 8px; border-radius:99px; font-weight:600; }
+        .narrative-bullish { background:rgba(34,197,94,0.15); color:#4ade80; border:1px solid rgba(34,197,94,0.3); }
+        .narrative-bearish { background:rgba(239,68,68,0.15); color:#f87171; border:1px solid rgba(239,68,68,0.3); }
+        .narrative-neutral { background:rgba(148,163,184,0.12); color:#94a3b8; border:1px solid rgba(148,163,184,0.25); }
+        .osint-pulse-bar { height:6px; border-radius:3px; background:#334155; overflow:hidden; }
+        .osint-pulse-fill { height:100%; border-radius:3px; transition:width 0.5s ease; background:linear-gradient(90deg,#6366f1,#8b5cf6); }
+        .social-post-card { padding:8px 10px; border-radius:6px; background:rgba(30,41,59,0.6); border:1px solid rgba(71,85,105,0.3); margin-bottom:5px; }
+        .risk-flag-chip { font-size:9px; padding:2px 6px; border-radius:4px; font-weight:700; letter-spacing:0.05em; }
+        .flag-active   { background:rgba(239,68,68,0.25); color:#fca5a5; border:1px solid rgba(239,68,68,0.4); }
+        .flag-inactive { background:rgba(71,85,105,0.2);  color:#475569; border:1px solid rgba(71,85,105,0.3); }
+        .osint-sub-bar { height:4px; border-radius:2px; background:#1e293b; overflow:hidden; }
+        .osint-sub-fill { height:100%; border-radius:2px; transition:width 0.5s ease; }
     </style>
 </head>
 <body class="min-h-screen p-4">
@@ -493,6 +513,170 @@
                     <div id="quantEventsFeed" class="space-y-1 max-h-36 overflow-y-auto scroll-thin">
                         <div class="text-xs text-gray-600 p-2 text-center">Loading events...</div>
                     </div>
+                </div>
+            </div>
+
+            <!-- ===== OSINT: AI MACRO SUMMARY ===== -->
+            <div class="card p-4" id="osintAISummaryPanel">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-lg font-semibold flex items-center gap-2">
+                        <span class="text-violet-400">🤖</span>
+                        AI Macro Summary
+                        <span class="text-xs bg-violet-700/60 px-2 py-0.5 rounded">Claude Haiku</span>
+                    </h2>
+                    <button onclick="togglePanel('aiSummaryBody','aiSummaryChevron')" class="text-gray-500 hover:text-gray-300 transition-colors text-xs flex items-center gap-1">
+                        <span id="aiSummaryChevron">▼</span>
+                    </button>
+                </div>
+                <div id="aiSummaryBody">
+                    <div id="aiSummaryText" class="text-sm text-gray-300 leading-relaxed mb-3 min-h-[3rem]">
+                        <span class="text-gray-500 italic">AI summary initializing...</span>
+                    </div>
+                    <div class="flex items-center justify-between text-xs text-gray-500">
+                        <div class="flex items-center gap-2">
+                            <span>Bias:</span>
+                            <span id="aiSummaryBias" class="bias-pill bias-neutral">NEUTRAL</span>
+                            <span>Confidence:</span>
+                            <span id="aiSummaryConf" class="text-gray-400">--</span>
+                        </div>
+                        <span id="aiSummaryCachedAt" class="text-gray-600">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== OSINT: GOLD RISK INDEX ===== -->
+            <div class="card p-4" id="osintGRIPanel">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-lg font-semibold flex items-center gap-2">
+                        <span class="text-yellow-400">⚠</span>
+                        Gold Risk Index
+                        <span id="griLabelBadge" class="text-xs bg-slate-700 px-2 py-0.5 rounded font-bold text-gray-300">--</span>
+                    </h2>
+                    <div class="flex items-center gap-2">
+                        <span id="griScoreDisplay" class="text-2xl font-bold text-yellow-400">--</span>
+                        <span class="text-xs text-gray-500">/100</span>
+                    </div>
+                </div>
+                <!-- Main GRI bar -->
+                <div class="gri-gauge-track mb-3">
+                    <div id="griMainFill" class="gri-gauge-fill gri-moderate" style="width:0%"></div>
+                </div>
+                <!-- Component sub-bars -->
+                <div class="grid grid-cols-2 gap-x-4 gap-y-2 mb-3">
+                    <div>
+                        <div class="flex justify-between text-xs text-gray-500 mb-1">
+                            <span>Geopolitical <span class="text-gray-600">35%</span></span>
+                            <span id="griGeoVal">--</span>
+                        </div>
+                        <div class="osint-sub-bar"><div id="griGeoFill" class="osint-sub-fill bg-red-500" style="width:0%"></div></div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-xs text-gray-500 mb-1">
+                            <span>Monetary <span class="text-gray-600">25%</span></span>
+                            <span id="griMonVal">--</span>
+                        </div>
+                        <div class="osint-sub-bar"><div id="griMonFill" class="osint-sub-fill bg-blue-500" style="width:0%"></div></div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-xs text-gray-500 mb-1">
+                            <span>Safe Haven <span class="text-gray-600">25%</span></span>
+                            <span id="griSHVal">--</span>
+                        </div>
+                        <div class="osint-sub-bar"><div id="griSHFill" class="osint-sub-fill bg-green-500" style="width:0%"></div></div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-xs text-gray-500 mb-1">
+                            <span>Retail <span class="text-gray-600">15%</span></span>
+                            <span id="griRetailVal">--</span>
+                        </div>
+                        <div class="osint-sub-bar"><div id="griRetailFill" class="osint-sub-fill bg-purple-500" style="width:0%"></div></div>
+                    </div>
+                </div>
+                <!-- Risk flags -->
+                <div class="flex flex-wrap gap-1 mt-2">
+                    <span id="flagFearSpike" class="risk-flag-chip flag-inactive">FEAR SPIKE</span>
+                    <span id="flagLongBoost" class="risk-flag-chip flag-inactive">LONG BOOST</span>
+                    <span id="flagHawkish" class="risk-flag-chip flag-inactive">HAWKISH DOM</span>
+                </div>
+            </div>
+
+            <!-- ===== OSINT: SCALP PULSE ===== -->
+            <div class="card p-4" id="osintPulsePanel">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-lg font-semibold flex items-center gap-2">
+                        <span class="text-indigo-400">⚡</span>
+                        OSINT Scalp Pulse
+                    </h2>
+                    <div class="flex items-center gap-3">
+                        <div class="text-right">
+                            <div class="text-xs text-gray-500">Fast Score</div>
+                            <div id="osintFastScore" class="text-xl font-bold text-indigo-300">--</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-xs text-gray-500">Blended</div>
+                            <div id="osintBlendedScore" class="text-xl font-bold text-white">--</div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Pulse bar -->
+                <div class="osint-pulse-bar mb-2">
+                    <div id="osintPulseFill" class="osint-pulse-fill" style="width:0%"></div>
+                </div>
+                <div class="flex justify-between text-xs text-gray-500 mt-2">
+                    <span id="osintFastLabel" class="text-indigo-400 font-semibold uppercase">--</span>
+                    <span id="osintFastDelta" class="text-gray-400">Δ --</span>
+                    <span id="osintBlendedDir" class="font-semibold">--</span>
+                </div>
+                <!-- Trade bias -->
+                <div class="mt-3 pt-3 border-t border-slate-700">
+                    <div class="text-xs text-gray-500 mb-1">Trade Adapter</div>
+                    <div class="flex items-center justify-between">
+                        <span id="osintTradeRule" class="text-xs text-gray-400">--</span>
+                        <span id="osintTradeMult" class="text-xs font-semibold text-yellow-400">×--</span>
+                    </div>
+                    <div id="osintTradeRationale" class="text-xs text-gray-600 mt-1 truncate">--</div>
+                </div>
+            </div>
+
+            <!-- ===== OSINT: DOMINANT NARRATIVES ===== -->
+            <div class="card p-4" id="osintNarrativesPanel">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-lg font-semibold flex items-center gap-2">
+                        <span class="text-cyan-400">📡</span>
+                        Dominant Narratives
+                    </h2>
+                    <button onclick="fetchOsintNarratives()" class="text-xs text-gray-500 hover:text-cyan-400 transition-colors px-2 py-1 rounded border border-slate-700">↺ Refresh</button>
+                </div>
+                <div id="osintNarrativesList" class="space-y-2">
+                    <div class="text-xs text-gray-600 text-center p-3">Loading narratives...</div>
+                </div>
+            </div>
+
+            <!-- ===== OSINT: REDDIT SENTIMENT ===== -->
+            <div class="card p-4" id="osintRedditPanel">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-lg font-semibold flex items-center gap-2">
+                        <span class="text-orange-500">🔴</span>
+                        Reddit Sentiment
+                        <span id="redditAvailBadge" class="text-xs bg-slate-700 px-2 py-0.5 rounded text-gray-400">--</span>
+                    </h2>
+                </div>
+                <div id="osintRedditPosts" class="space-y-2">
+                    <div class="text-xs text-gray-600 text-center p-3">Loading Reddit posts...</div>
+                </div>
+            </div>
+
+            <!-- ===== OSINT: X (TWITTER) FEED ===== -->
+            <div class="card p-4" id="osintTwitterPanel">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-lg font-semibold flex items-center gap-2">
+                        <span class="text-sky-400">𝕏</span>
+                        X (Twitter) Feed
+                        <span id="twitterAvailBadge" class="text-xs bg-slate-700 px-2 py-0.5 rounded text-gray-400">--</span>
+                    </h2>
+                </div>
+                <div id="osintTwitterPosts" class="space-y-2">
+                    <div class="text-xs text-gray-600 text-center p-3">Loading tweets...</div>
                 </div>
             </div>
 
@@ -1828,6 +2012,213 @@
             updateTimestamp();
         }
 
+        // ── OSINT Intelligence Layer JS ─────────────────────────────────────
+
+        function togglePanel(bodyId, chevronId) {
+            const body = document.getElementById(bodyId);
+            const chevron = document.getElementById(chevronId);
+            if (!body) return;
+            const hidden = body.style.display === 'none';
+            body.style.display = hidden ? '' : 'none';
+            if (chevron) chevron.textContent = hidden ? '▼' : '▶';
+        }
+
+        async function fetchOsintAll() {
+            await Promise.all([
+                fetchOsintStatus(),
+                fetchOsintNarratives(),
+                fetchOsintSocial(),
+            ]);
+        }
+
+        async function fetchOsintStatus() {
+            try {
+                const r = await fetch('/api/osint/status');
+                if (!r.ok) return;
+                const d = await r.json();
+                if (!d.available) {
+                    document.getElementById('aiSummaryText').innerHTML =
+                        '<span class="text-gray-500 italic">AI summary initializing — waiting for first OSINT cycle (3 min)...</span>';
+                    return;
+                }
+
+                // --- AI Summary panel ---
+                const summaryEl = document.getElementById('aiSummaryText');
+                if (summaryEl) {
+                    summaryEl.textContent = d.ai_summary || 'No summary available yet.';
+                }
+                const biasEl = document.getElementById('aiSummaryBias');
+                if (biasEl) {
+                    const conf = d.ai_confidence ?? 0.5;
+                    const bias = conf >= 0.6 ? 'BULLISH' : conf <= 0.4 ? 'BEARISH' : 'NEUTRAL';
+                    biasEl.textContent = bias;
+                    biasEl.className = 'bias-pill ' + (bias === 'BULLISH' ? 'bias-bullish' : bias === 'BEARISH' ? 'bias-bearish' : 'bias-neutral');
+                }
+                const confEl = document.getElementById('aiSummaryConf');
+                if (confEl) confEl.textContent = d.ai_confidence != null ? (d.ai_confidence * 100).toFixed(0) + '%' : '--';
+                const cachedEl = document.getElementById('aiSummaryCachedAt');
+                if (cachedEl && d.ai_summary_cached_at) {
+                    const age = Math.floor((Date.now()/1000 - d.ai_summary_cached_at) / 60);
+                    cachedEl.textContent = age < 1 ? 'just now' : age + 'm ago';
+                }
+
+                // --- GRI panel ---
+                const gri = d.gri || {};
+                const score = gri.score ?? 0;
+                const label = gri.label ?? 'moderate';
+
+                const scoreEl = document.getElementById('griScoreDisplay');
+                if (scoreEl) scoreEl.textContent = score.toFixed(1);
+                const labelBadgeEl = document.getElementById('griLabelBadge');
+                if (labelBadgeEl) {
+                    labelBadgeEl.textContent = label.toUpperCase();
+                    const colors = { low:'text-green-400', moderate:'text-yellow-400', elevated:'text-orange-400', extreme:'text-red-400' };
+                    labelBadgeEl.className = 'text-xs bg-slate-700 px-2 py-0.5 rounded font-bold ' + (colors[label] || 'text-gray-300');
+                }
+                const mainFill = document.getElementById('griMainFill');
+                if (mainFill) {
+                    mainFill.style.width = score + '%';
+                    mainFill.className = 'gri-gauge-fill gri-' + label;
+                }
+                // Sub-bars
+                const subs = [
+                    ['griGeoVal','griGeoFill', gri.geo],
+                    ['griMonVal','griMonFill', gri.monetary],
+                    ['griSHVal','griSHFill',  gri.safe_haven],
+                    ['griRetailVal','griRetailFill', gri.retail],
+                ];
+                subs.forEach(([vId, bId, val]) => {
+                    const vEl = document.getElementById(vId);
+                    const bEl = document.getElementById(bId);
+                    if (vEl) vEl.textContent = val != null ? val.toFixed(0) : '--';
+                    if (bEl) bEl.style.width = (val ?? 0) + '%';
+                });
+                // Risk flags
+                function setFlag(id, active) {
+                    const el = document.getElementById(id);
+                    if (el) el.className = 'risk-flag-chip ' + (active ? 'flag-active' : 'flag-inactive');
+                }
+                setFlag('flagFearSpike', d.fear_spike);
+                setFlag('flagLongBoost', d.long_multiplier_boost);
+                setFlag('flagHawkish', d.hawkish_dominant);
+
+                // --- Scalp Pulse panel ---
+                const fastScore = d.fast_score ?? 50;
+                const blended  = d.blended_composite ?? 50;
+
+                const fsEl = document.getElementById('osintFastScore');
+                if (fsEl) { fsEl.textContent = fastScore.toFixed(1); fsEl.className = 'text-xl font-bold ' + (fastScore >= 58 ? 'text-green-300' : fastScore <= 42 ? 'text-red-300' : 'text-yellow-300'); }
+                const blEl = document.getElementById('osintBlendedScore');
+                if (blEl) { blEl.textContent = blended.toFixed(1); blEl.className = 'text-xl font-bold ' + (blended >= 58 ? 'text-green-300' : blended <= 42 ? 'text-red-300' : 'text-yellow-300'); }
+                const pulseFill = document.getElementById('osintPulseFill');
+                if (pulseFill) pulseFill.style.width = fastScore + '%';
+                const fastLbl = document.getElementById('osintFastLabel');
+                if (fastLbl) fastLbl.textContent = (d.fast_label || 'neutral').replace(/_/g,' ');
+                const deltaEl = document.getElementById('osintFastDelta');
+                if (deltaEl) { const dv = d.fast_delta ?? 0; deltaEl.textContent = 'Δ ' + (dv >= 0 ? '+' : '') + dv.toFixed(1); deltaEl.className = 'text-xs ' + (dv > 0 ? 'text-green-400' : dv < 0 ? 'text-red-400' : 'text-gray-400'); }
+                const blDir = document.getElementById('osintBlendedDir');
+                if (blDir) { blDir.textContent = d.blended_direction || 'NEUTRAL'; blDir.className = 'font-semibold text-xs ' + (d.blended_direction === 'BULLISH' ? 'text-green-400' : d.blended_direction === 'BEARISH' ? 'text-red-400' : 'text-gray-400'); }
+
+                // Trade adapter
+                const trade = d.trade || {};
+                const truleEl = document.getElementById('osintTradeRule');
+                if (truleEl) truleEl.textContent = trade.rule || '--';
+                const tmultEl = document.getElementById('osintTradeMult');
+                if (tmultEl) { tmultEl.textContent = '×' + (trade.size_multiplier?.toFixed(2) ?? '1.00'); tmultEl.className = 'text-xs font-semibold ' + (trade.size_multiplier > 1 ? 'text-green-400' : trade.size_multiplier < 1 ? 'text-red-400' : 'text-yellow-400'); }
+                const tratEl = document.getElementById('osintTradeRationale');
+                if (tratEl) tratEl.textContent = trade.rationale || '--';
+
+            } catch(e) { console.debug('fetchOsintStatus error', e); }
+        }
+
+        async function fetchOsintNarratives() {
+            try {
+                const r = await fetch('/api/osint/narratives');
+                if (!r.ok) return;
+                const d = await r.json();
+                const container = document.getElementById('osintNarrativesList');
+                if (!container) return;
+                if (!d.available || !d.narratives || d.narratives.length === 0) {
+                    container.innerHTML = '<div class="text-xs text-gray-600 text-center p-3">No narratives detected yet</div>';
+                    return;
+                }
+                const impactColors = { bullish: 'narrative-bullish', bearish: 'narrative-bearish', neutral: 'narrative-neutral' };
+                container.innerHTML = d.narratives.slice(0, 6).map(n => `
+                    <div class="flex items-center justify-between py-1.5 border-b border-slate-800 last:border-0">
+                        <div class="flex items-center gap-2 min-w-0">
+                            <span class="narrative-pill ${impactColors[n.gold_impact] || 'narrative-neutral'}">${n.gold_impact.toUpperCase()}</span>
+                            <span class="text-xs text-gray-300 truncate" title="${n.description}">${n.name.replace(/_/g,' ')}</span>
+                        </div>
+                        <div class="flex items-center gap-2 flex-shrink-0">
+                            <span class="text-xs text-gray-500">${n.evidence_count || 0} hits</span>
+                            <span class="text-xs font-semibold text-gray-200">${(n.confidence*100).toFixed(0)}%</span>
+                        </div>
+                    </div>
+                `).join('');
+            } catch(e) { console.debug('fetchOsintNarratives error', e); }
+        }
+
+        async function fetchOsintSocial() {
+            try {
+                const r = await fetch('/api/osint/social');
+                if (!r.ok) return;
+                const d = await r.json();
+
+                // Reddit
+                const redditBadge = document.getElementById('redditAvailBadge');
+                const redditPosts = document.getElementById('osintRedditPosts');
+                if (redditBadge) { redditBadge.textContent = d.reddit?.available ? 'LIVE' : 'PUBLIC JSON'; redditBadge.className = 'text-xs px-2 py-0.5 rounded ' + (d.reddit?.available ? 'bg-green-700/40 text-green-300' : 'bg-slate-700 text-gray-400'); }
+                if (redditPosts) {
+                    const posts = d.reddit?.posts || [];
+                    if (posts.length === 0) {
+                        redditPosts.innerHTML = '<div class="text-xs text-gray-600 text-center p-3">No relevant posts in window</div>';
+                    } else {
+                        redditPosts.innerHTML = posts.slice(0,3).map(p => `
+                            <div class="social-post-card">
+                                <div class="flex items-start justify-between gap-2">
+                                    <a href="${p.url||'#'}" target="_blank" class="text-xs text-gray-300 hover:text-blue-300 line-clamp-2 leading-tight flex-1">${p.title||p.text||'(no title)'}</a>
+                                    <span class="text-xs font-semibold flex-shrink-0 ${p.sentiment_score >= 0.05 ? 'text-green-400' : p.sentiment_score <= -0.05 ? 'text-red-400' : 'text-gray-400'}">${p.sentiment_score >= 0 ? '+' : ''}${(p.sentiment_score*100).toFixed(0)}</span>
+                                </div>
+                                <div class="flex items-center gap-3 mt-1 text-xs text-gray-600">
+                                    <span>r/${p.subreddit||'?'}</span>
+                                    <span>▲${p.score||0}</span>
+                                    <span>💬${p.num_comments||0}</span>
+                                </div>
+                            </div>
+                        `).join('');
+                    }
+                }
+
+                // Twitter
+                const twBadge = document.getElementById('twitterAvailBadge');
+                const twPosts = document.getElementById('osintTwitterPosts');
+                if (twBadge) { twBadge.textContent = d.twitter?.available ? 'LIVE' : 'NO KEY'; twBadge.className = 'text-xs px-2 py-0.5 rounded ' + (d.twitter?.available ? 'bg-sky-700/40 text-sky-300' : 'bg-slate-700 text-gray-500'); }
+                if (twPosts) {
+                    const tweets = d.twitter?.posts || [];
+                    if (tweets.length === 0) {
+                        twPosts.innerHTML = '<div class="text-xs text-gray-600 text-center p-3">Set TWITTER_BEARER_TOKEN to enable live feed</div>';
+                    } else {
+                        twPosts.innerHTML = tweets.slice(0,3).map(t => `
+                            <div class="social-post-card">
+                                <div class="flex items-start justify-between gap-2">
+                                    <a href="${t.url||'#'}" target="_blank" class="text-xs text-gray-300 hover:text-sky-300 line-clamp-2 leading-tight flex-1">${t.text||''}</a>
+                                    <span class="text-xs font-semibold flex-shrink-0 ${t.sentiment_score >= 0.05 ? 'text-green-400' : t.sentiment_score <= -0.05 ? 'text-red-400' : 'text-gray-400'}">${t.sentiment_score >= 0 ? '+' : ''}${(t.sentiment_score*100).toFixed(0)}</span>
+                                </div>
+                                <div class="flex items-center gap-3 mt-1 text-xs text-gray-600">
+                                    <span>@${t.author||'?'}</span>
+                                    <span>♥${t.like_count||0}</span>
+                                    <span>⟲${t.retweet_count||0}</span>
+                                </div>
+                            </div>
+                        `).join('');
+                    }
+                }
+
+            } catch(e) { console.debug('fetchOsintSocial error', e); }
+        }
+
+        // ── End OSINT JS ────────────────────────────────────────────────────
+
         document.addEventListener('DOMContentLoaded', () => {
             initCharts();
             refreshAll();
@@ -1836,6 +2227,9 @@
             setInterval(fetchPolymarketIntel, 120000);
             // Quant engine refreshes every 30 seconds (between main cycles)
             setInterval(fetchQuantStatus, 30000);
+            // OSINT layer refreshes every 3 minutes
+            fetchOsintAll();
+            setInterval(fetchOsintAll, 180000);
         });
     </script>
 </body>

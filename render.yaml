@@ -9,3 +9,14 @@ services:
         value: "3.11"
       - key: PORT
         value: 10000
+      # OSINT Intelligence Layer
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: REDDIT_CLIENT_ID
+        sync: false
+      - key: REDDIT_CLIENT_SECRET
+        sync: false
+      - key: REDDIT_USER_AGENT
+        value: "OSINTBot/1.0 (gold quant engine)"
+      - key: TWITTER_BEARER_TOKEN
+        sync: false

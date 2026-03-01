@@ -35,3 +35,7 @@ aiofiles>=23.2.1
 
 # HTTP client (already in requirements.txt via httpx)
 httpx>=0.26.0
+
+# OSINT Intelligence Layer
+anthropic>=0.40.0
+praw>=7.7.1

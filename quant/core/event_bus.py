@@ -16,6 +16,7 @@ class EventType(Enum):
     SOCIAL_ITEM = auto()
     POLY_UPDATE = auto()
     ANALYSIS_COMPLETE = auto()
+    OSINT_UPDATE = auto()
 
 
 @dataclass
