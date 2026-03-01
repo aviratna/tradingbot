@@ -1,0 +1,46 @@
+###############################################################################
+# docker-compose.yml — Local dev / GCP VM single-container deployment
+# Usage:
+#   cp .env.example .env          # fill in your API keys
+#   docker compose up -d          # start in background
+#   docker compose logs -f        # follow logs
+#   docker compose down           # stop
+###############################################################################
+
+version: "3.9"
+
+services:
+  tradingbot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tradingbot
+    restart: unless-stopped
+    ports:
+      - "8000:8000"       # FastAPI / dashboard
+    env_file:
+      - .env              # local secrets — never commit this file
+    environment:
+      # Defaults that are safe to bake in (override in .env if needed)
+      - PORT=8000
+      - PYTHON_VERSION=3.11
+    volumes:
+      # Persist quant snapshots between restarts
+      - quant_snapshots:/tradingbot/quant/data/snapshots
+      # Persist logs
+      - app_logs:/tradingbot/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s    # quant engine needs ~60s warm-up
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+volumes:
+  quant_snapshots:
+  app_logs:

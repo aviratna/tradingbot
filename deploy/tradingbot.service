@@ -1,0 +1,38 @@
+# /etc/systemd/system/tradingbot.service
+# Systemd unit file for the Trading Bot container
+#
+# Install:
+#   sudo cp deploy/tradingbot.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable tradingbot
+#   sudo systemctl start tradingbot
+#
+# Commands:
+#   sudo systemctl status tradingbot
+#   sudo systemctl restart tradingbot
+#   journalctl -u tradingbot -f
+
+[Unit]
+Description=Trading Bot (FastAPI + Quant Engine + OSINT)
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=tradingbot
+WorkingDirectory=/opt/tradingbot
+ExecStart=/usr/bin/docker compose up -d --build
+ExecStop=/usr/bin/docker compose down
+Restart=on-failure
+RestartSec=30
+TimeoutStartSec=300
+
+# Resource limits (tune for your VM size)
+# e2-micro:  LimitMEMLOCK=512M
+# e2-small:  LimitMEMLOCK=2G
+# e2-medium: LimitMEMLOCK=4G
+
+[Install]
+WantedBy=multi-user.target

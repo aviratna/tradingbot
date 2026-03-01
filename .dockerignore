@@ -1,0 +1,65 @@
+# Version control
+.git
+.gitignore
+
+# Python virtual environment (never copy venv into image)
+venv/
+.venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+.Python
+
+# Build / dist
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+*.xml
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS artefacts
+.DS_Store
+Thumbs.db
+nul
+
+# Local env files (secrets — never bake into image)
+.env
+.env.*
+!.env.example
+
+# Claude/agent files
+.claude/
+
+# Render config (not needed inside container)
+render.yaml
+
+# Deploy scripts (not needed inside container)
+deploy/
+
+# Quant data snapshots (regenerated at runtime)
+quant/data/snapshots/
+
+# Logs (written at runtime)
+logs/
+*.log
+
+# Node / frontend tooling (if any)
+node_modules/

@@ -42,6 +42,14 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+nul
 
 # Logs
 *.log
+logs/
+
+# Quant snapshots (runtime generated)
+quant/data/snapshots/
+
+# Claude agent files
+.claude/
