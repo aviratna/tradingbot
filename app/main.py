@@ -2,18 +2,120 @@
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import os
+import asyncio
+import time
+from contextlib import asynccontextmanager
 
 from .api.routes import router as api_router
 from .config import settings
+
+# ── Quant Engine Integration ──────────────────────────────────────────────────
+# Import quant engine components; fail gracefully if deps missing
+_quant_state = None
+_quant_task = None
+
+def _start_quant_engine(app_instance):
+    """Launch the quant engine as a background asyncio task."""
+    global _quant_state, _quant_task
+    try:
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+        from quant.core.event_bus import get_event_bus
+        from quant.core.config import get_config
+        from quant.core.logger import setup_logging, get_logger
+        from quant.market.xau_stream import XAUStream
+        from quant.market.xaut_stream import XAUTStream
+        from quant.market.macro_stream import MacroStream
+        from quant.news.finance_stream import FinanceNewsStream
+        from quant.news.geopolitics_stream import GeopoliticsStream
+        from quant.news.reddit_stream import RedditStream
+        from quant.polymarket.polymarket_stream import PolymarketStream
+        from quant.analysis.orchestrator import AnalysisOrchestrator
+        from quant.dashboard.json_export import JSONExporter
+        from quant.state import QuantState
+
+        setup_logging("INFO")
+        log = get_logger("app.quant_launcher")
+        bus = get_event_bus()
+
+        state = QuantState()
+        _quant_state = state
+        app_instance.state.quant = state
+
+        xau_price_ref = [0.0]
+
+        async def _xau_tracker():
+            from quant.core.event_bus import EventType
+            q = await bus.subscribe(EventType.XAU_PRICE)
+            while True:
+                event = await q.get()
+                xau_price_ref[0] = event.data.price
+
+        async def _run_all():
+            xau = XAUStream()
+            xaut = XAUTStream(xau_price_ref)
+            macro = MacroStream()
+            finance = FinanceNewsStream()
+            geo = GeopoliticsStream()
+            reddit = RedditStream()
+            poly = PolymarketStream()
+            orch = AnalysisOrchestrator(state, bus)
+            exporter = JSONExporter(state)
+
+            log.info("quant_engine_background_start")
+            await asyncio.gather(
+                xau.run(),
+                xaut.run(),
+                macro.run(),
+                finance.run(),
+                geo.run(),
+                reddit.run(),
+                poly.run(),
+                _xau_tracker(),
+                orch.run_event_consumer(),
+                exporter.run(),
+                return_exceptions=True,
+            )
+
+        loop = asyncio.get_event_loop()
+        _quant_task = loop.create_task(_run_all())
+        log.info("quant_engine_task_created")
+
+    except Exception as e:
+        import logging
+        logging.getLogger("app.quant_launcher").warning(
+            f"Quant engine could not start (non-fatal): {e}"
+        )
+
+
+@asynccontextmanager
+async def lifespan(app_instance: FastAPI):
+    """Startup / shutdown lifecycle."""
+    # Start quant engine on startup
+    _start_quant_engine(app_instance)
+    yield
+    # Shutdown: cancel quant task
+    global _quant_task
+    if _quant_task and not _quant_task.done():
+        _quant_task.cancel()
+        try:
+            await _quant_task
+        except (asyncio.CancelledError, Exception):
+            pass
+# ─────────────────────────────────────────────────────────────────────────────
+
 
 # Create FastAPI app
 app = FastAPI(
     title="Trading Dashboard",
     description="Real-time trading dashboard with market data, sentiment analysis, and Fibonacci patterns",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan,
 )
 
 # Add CORS middleware
@@ -64,6 +166,93 @@ async def metals_dashboard(request: Request):
 async def health():
     """Health check endpoint."""
     return {"status": "healthy"}
+
+
+@app.get("/quant/status")
+async def quant_status(request: Request):
+    """Return current quant engine state as JSON."""
+    state = getattr(request.app.state, "quant", None)
+    if state is None:
+        return JSONResponse({"status": "not_running", "error": "Quant engine not initialized"}, status_code=503)
+
+    def _safe(obj):
+        """Safely extract primitive fields from dataclass."""
+        if obj is None:
+            return None
+        try:
+            from dataclasses import fields
+            result = {}
+            for f in fields(obj):
+                val = getattr(obj, f.name, None)
+                if hasattr(val, "value"):       # Enum
+                    result[f.name] = val.value
+                elif isinstance(val, (int, float, str, bool, type(None))):
+                    result[f.name] = val
+                elif isinstance(val, list):
+                    result[f.name] = [str(v)[:120] for v in val[:5]]
+                else:
+                    result[f.name] = str(val)[:120]
+            return result
+        except Exception:
+            return str(obj)[:200]
+
+    return {
+        "status": "running",
+        "timestamp": time.time(),
+        "xau": {
+            "price": state.xau_data.price if state.xau_data else None,
+            "change_pct": state.xau_data.change_pct if state.xau_data else None,
+        },
+        "xaut": {
+            "price": state.xaut_data.price if state.xaut_data else None,
+            "premium_pct": state.xaut_data.premium_discount_pct if state.xaut_data else None,
+        },
+        "signal": {
+            "composite": state.signal_score.composite if state.signal_score else None,
+            "direction": state.signal_score.direction.value if state.signal_score else None,
+            "tech_score": state.signal_score.tech_score if state.signal_score else None,
+            "macro_score": state.signal_score.macro_score if state.signal_score else None,
+            "sentiment_score": state.signal_score.sentiment_score if state.signal_score else None,
+            "polymarket_score": state.signal_score.polymarket_score if state.signal_score else None,
+        },
+        "regime": {
+            "name": state.regime_snap.regime.value if state.regime_snap else None,
+            "gold_bias": state.regime_snap.gold_bias if state.regime_snap else None,
+            "description": state.regime_snap.description if state.regime_snap else None,
+            "triggers": state.regime_snap.triggers if state.regime_snap else [],
+        },
+        "technicals": _safe(state.tech_snap),
+        "macro": _safe(state.macro_snap),
+        "sentiment": _safe(state.sentiment_snap),
+        "risk": _safe(state.risk_snap),
+        "trade": {
+            "action": state.trade_suggestion.action if state.trade_suggestion else None,
+            "entry_low": state.trade_suggestion.entry_low if state.trade_suggestion else None,
+            "entry_high": state.trade_suggestion.entry_high if state.trade_suggestion else None,
+            "stop_loss": state.trade_suggestion.stop_loss if state.trade_suggestion else None,
+            "take_profit_1": state.trade_suggestion.take_profit_1 if state.trade_suggestion else None,
+            "take_profit_2": state.trade_suggestion.take_profit_2 if state.trade_suggestion else None,
+            "r_r_ratio": state.trade_suggestion.r_r_ratio if state.trade_suggestion else None,
+            "rationale": state.trade_suggestion.rationale if state.trade_suggestion else [],
+        },
+        "forecast": {
+            "direction": state.forecast_snap.forecast_direction if state.forecast_snap else None,
+            "method": state.forecast_snap.method_used if state.forecast_snap else None,
+            "scenarios": [
+                {
+                    "horizon_min": s.horizon_minutes,
+                    "base": s.base_forecast,
+                    "low": s.lower_band,
+                    "high": s.upper_band,
+                }
+                for s in state.forecast_snap.scenarios
+            ] if state.forecast_snap else [],
+        },
+        "recent_events": [
+            {"time": e[0], "msg": e[1], "color": e[2]}
+            for e in (state.recent_events[-10:] if state.recent_events else [])
+        ],
+    }
 
 
 if __name__ == "__main__":
