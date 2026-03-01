@@ -13,20 +13,22 @@ from .api.routes import router as api_router
 from .config import settings
 
 # ── Quant Engine Integration ──────────────────────────────────────────────────
-# Import quant engine components; fail gracefully if deps missing
+import sys as _sys
+import logging as _logging
+from pathlib import Path as _Path
+_sys.path.insert(0, str(_Path(__file__).resolve().parents[1]))
+
 _quant_state = None
 _quant_task = None
+_quant_log = _logging.getLogger("app.quant_launcher")
 
-def _start_quant_engine(app_instance):
-    """Launch the quant engine as a background asyncio task."""
+
+@asynccontextmanager
+async def lifespan(app_instance: FastAPI):
+    """Startup / shutdown lifecycle — starts quant engine as background task."""
     global _quant_state, _quant_task
     try:
-        import sys
-        from pathlib import Path
-        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
-        from quant.core.event_bus import get_event_bus
-        from quant.core.config import get_config
+        from quant.core.event_bus import get_event_bus, EventType
         from quant.core.logger import setup_logging, get_logger
         from quant.market.xau_stream import XAUStream
         from quant.market.xaut_stream import XAUTStream
@@ -45,62 +47,53 @@ def _start_quant_engine(app_instance):
 
         state = QuantState()
         _quant_state = state
-        app_instance.state.quant = state
+        app_instance.state.quant = state  # expose on FastAPI app.state
 
         xau_price_ref = [0.0]
 
         async def _xau_tracker():
-            from quant.core.event_bus import EventType
             q = await bus.subscribe(EventType.XAU_PRICE)
             while True:
                 event = await q.get()
                 xau_price_ref[0] = event.data.price
 
         async def _run_all():
-            xau = XAUStream()
-            xaut = XAUTStream(xau_price_ref)
-            macro = MacroStream()
-            finance = FinanceNewsStream()
-            geo = GeopoliticsStream()
-            reddit = RedditStream()
-            poly = PolymarketStream()
-            orch = AnalysisOrchestrator(state, bus)
-            exporter = JSONExporter(state)
+            try:
+                xau = XAUStream()
+                xaut = XAUTStream(xau_price_ref)
+                macro = MacroStream()
+                finance = FinanceNewsStream()
+                geo = GeopoliticsStream()
+                reddit = RedditStream()
+                poly = PolymarketStream()
+                orch = AnalysisOrchestrator(state, bus)
+                exporter = JSONExporter(state)
+                log.info("quant_engine_all_streams_started")
+                await asyncio.gather(
+                    xau.run(),
+                    xaut.run(),
+                    macro.run(),
+                    finance.run(),
+                    geo.run(),
+                    reddit.run(),
+                    poly.run(),
+                    _xau_tracker(),
+                    orch.run_event_consumer(),
+                    exporter.run(),
+                    return_exceptions=True,
+                )
+            except Exception as inner_e:
+                log.error("quant_gather_failed", error=str(inner_e), exc_info=True)
 
-            log.info("quant_engine_background_start")
-            await asyncio.gather(
-                xau.run(),
-                xaut.run(),
-                macro.run(),
-                finance.run(),
-                geo.run(),
-                reddit.run(),
-                poly.run(),
-                _xau_tracker(),
-                orch.run_event_consumer(),
-                exporter.run(),
-                return_exceptions=True,
-            )
-
-        loop = asyncio.get_event_loop()
-        _quant_task = loop.create_task(_run_all())
+        _quant_task = asyncio.create_task(_run_all())
         log.info("quant_engine_task_created")
 
     except Exception as e:
-        import logging
-        logging.getLogger("app.quant_launcher").warning(
-            f"Quant engine could not start (non-fatal): {e}"
-        )
+        _quant_log.warning(f"Quant engine could not start (non-fatal): {e}", exc_info=True)
 
+    yield  # FastAPI serves requests here
 
-@asynccontextmanager
-async def lifespan(app_instance: FastAPI):
-    """Startup / shutdown lifecycle."""
-    # Start quant engine on startup
-    _start_quant_engine(app_instance)
-    yield
     # Shutdown: cancel quant task
-    global _quant_task
     if _quant_task and not _quant_task.done():
         _quant_task.cancel()
         try:
@@ -171,7 +164,8 @@ async def health():
 @app.get("/quant/status")
 async def quant_status(request: Request):
     """Return current quant engine state as JSON."""
-    state = getattr(request.app.state, "quant", None)
+    # Try app.state first, then module-level fallback
+    state = getattr(request.app.state, "quant", None) or _quant_state
     if state is None:
         return JSONResponse({"status": "not_running", "error": "Quant engine not initialized"}, status_code=503)
 
